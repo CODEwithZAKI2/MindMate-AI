@@ -101,7 +101,17 @@ class AuthRepository {
     if (!doc.exists) {
       throw Exception('User profile not found');
     }
-    return UserModel.fromFirestore(doc).toEntity();
+    final user = UserModel.fromFirestore(doc).toEntity();
+    
+    // Migration: Fix old users with onboardingComplete: false
+    if (!user.onboardingComplete) {
+      await _firestore.collection('users').doc(userId).update({
+        'onboardingComplete': true,
+      });
+      return user.copyWith(onboardingComplete: true);
+    }
+    
+    return user;
   }
 
   // Create user profile
