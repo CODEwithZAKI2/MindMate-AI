@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "310752496566",
+    "project_id": "mindmate-ai-eada4",
+    "storage_bucket": "mindmate-ai-eada4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:310752496566:android:41ef320f927f0df0d28f17",
+        "android_client_info": {
+          "package_name": "com.mindmate.mindmate_ai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBlAaiO-AJ1TqHiSKCjOYX-L9eTFVvxWeg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
