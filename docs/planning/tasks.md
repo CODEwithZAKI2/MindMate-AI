@@ -24,7 +24,7 @@
 - [x] Initialize Flutter project structure
 - [x] Set up dependencies (32 packages)
 - [x] Implement project folder structure
-- [x] Create core constants files (app_constants, api_endpoints, asset_paths)
+- [x] Create core constants files (app_constants, api_endpoints, asset_paths, routes)
 - [x] Implement theme system (colors, typography, app_theme)
 - [x] Build utilities (validators, date_utils, logger)
 - [x] Create error handling (exceptions, failures)
@@ -44,24 +44,31 @@
 - [x] Create domain entities (User, MoodLog, ChatMessage, ChatSession)
 - [x] Create data models with Firestore serialization (UserModel, MoodLogModel, ChatMessageModel, ChatSessionModel, UserPreferencesModel)
 - [x] Implement repositories (AuthRepository, UserRepository, MoodRepository, ChatRepository)
+- [x] Implement Riverpod providers (AuthProvider, UserProvider, MoodProvider, ChatProvider)
+- [x] Create Splash screen with auth state checking
+- [x] Build Onboarding flow (4 pages)
+- [x] Implement Disclaimer screen
+- [x] Create Sign In and Sign Up screens
+- [x] Build Home dashboard
+- [x] Update navigation with auth guards
 
 ### 🔄 In Progress
-- [ ] Implement Riverpod providers for state management
-- [ ] Build UI screens (Splash, Onboarding, Auth, Home, Chat, Mood)
+- [ ] Build Chat UI screens
+- [ ] Build Mood tracking screens
 
 ### 📝 Next Up
-- [ ] Create AuthProvider with Riverpod
-- [ ] Create UserProvider and MoodProvider
-- [ ] Create ChatProvider for session management
-- [ ] Implement Splash screen with auth check
-- [ ] Build Onboarding flow screens
-- [ ] Create authentication screens (Sign In, Sign Up)
+- [ ] Implement Chat screen with message list and input
+- [ ] Create Mood check-in screen (1-5 scale)
+- [ ] Create Mood history screen
+- [ ] Set up Cloud Functions for AI chat endpoint
+- [ ] Integrate Gemini API
+- [ ] Implement crisis detection
 
 ---
 
 ## 📦 Phase 1: MVP (Weeks 1-8)
 
-### Week 1-2: Foundation ✅ IN PROGRESS
+### Week 1-2: Foundation ✅ MOSTLY COMPLETE
 - [x] Project planning and documentation
 - [x] Flutter project initialization
 - [x] Firebase project setup
@@ -70,16 +77,19 @@
 - [x] Theme system (colors, typography, Material 3)
 - [x] Utilities (validators, date utils, logger)
 - [x] Error handling (exceptions, failures)
-- [x] Navigation setup (GoRouter, routes)
+- [x] Navigation setup (GoRouter, routes, auth guards)
 - [x] App structure (main.dart, app.dart with Riverpod)
 - [x] Documentation (README, progress tracker)
 - [x] Git repository initialization
 - [x] Domain entities (User, MoodLog, ChatSession, ChatMessage)
 - [x] Data models with Firestore serialization
 - [x] Repository layer (Auth, User, Mood, Chat)
-- [ ] Riverpod providers (Auth, User, Mood, Chat, Settings) - IN PROGRESS
-- [ ] Set up Firestore security rules
-- [ ] Set up CI/CD pipeline basics
+- [x] Riverpod providers (Auth, User, Mood, Chat)
+- [x] Splash, Onboarding, Disclaimer screens
+- [x] Authentication screens (Sign In, Sign Up)
+- [x] Home dashboard screen
+- [ ] Set up Firestore security rules - TODO
+- [ ] Set up CI/CD pipeline basics - TODO
 
 ### Week 3-4: Chat Core & Authentication UI
 - [ ] Create Riverpod providers (AuthProvider, UserProvider, MoodProvider, ChatProvider) - NEXT
@@ -279,28 +289,42 @@
 ---
 
 ## 📝 Notes & Decisions
+
+**December 17, 2025 - 22:00 UTC:**
+- State management layer complete with 4 Riverpod providers
+- Core UI flow implemented: Splash → Onboarding → Disclaimer → Sign In/Up → Home
+- Navigation guards working with auth state, onboarding, and disclaimer checks
+- All screens follow Material 3 design with proper theming
+- Git commit 13a9e5c: State management and UI screens
+- Total lines of new code: ~2,142 (providers + screens)
+
+**December 17, 2025 - Earlier:**
+- Chose Riverpod over BLoC for state management (better testing, less boilerplate)
+- Decided on backend-only AI integration for security and control
+- Implemented sliding window + summary hybrid for conversation memory
+- Set conservative crisis keyword list (to be expanded iteratively)
+- Firestore chosen over Realtime Database for better querying capabilities
 - Git repository initialized with commit 67ae010
 - Firebase project: mindmate-ai-eada4
 - Android minSdk set to 23 (required by Firebase Auth)
 - Implemented clean architecture: domain/entities → data/models/repositories → presentation/providers/screens
 - Data layer complete: 4 entities, 5 models, 4 repositories with full CRUD operations
 - All models have Firestore serialization (toFirestore/fromFirestore)
-- Repositories ready for use by Riverpod providers
-
-**December 17, 2025:**
-- Chose Riverpod over BLoC for state management (better testing, less boilerplate)
-- Decided on backend-only AI integration for security and control
-- Implemented sliding window + summary hybrid for conversation memory
-- Set conservative crisis keyword list (to be expanded iteratively)
-- Firestore chosen over Realtime Database for better querying capabilities
 
 ---
 
 ## 🚨 Blockers & Issues
 
 **Current Blockers:**
-- None (just starting!) - 21:00 UTC*
-*Progress: Data layer complete (entities, models, repositories). Next: Riverpod providers and UI screens.
+- None
+
+**Resolved:**
+- N/A
+
+---
+
+*Last Updated: December 17, 2025 - 22:00 UTC*  
+*Progress: Core foundation complete (data layer, providers, authentication flow). Authentication and onboarding flow fully functional. Next: Chat and Mood screens.*
 
 **Resolved:**
 - N/A
