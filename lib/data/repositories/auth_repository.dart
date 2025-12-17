@@ -66,7 +66,8 @@ class AuthRepository {
     final userDoc = await _firestore.collection('users').doc(firebaseUser.uid).get();
     
     if (userDoc.exists) {
-      return UserModel.fromFirestore(userDoc).toEntity();
+      // Use getUserProfile which includes migration logic
+      return await getUserProfile(firebaseUser.uid);
     }
 
     // Create new profile for Google sign-in
