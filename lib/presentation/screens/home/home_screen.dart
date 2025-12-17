@@ -1,0 +1,249 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/user_provider.dart';
+import '../../../core/constants/routes.dart';
+
+class HomeScreen extends ConsumerWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final authState = ref.watch(authStateProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('MindMate AI'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_rounded),
+            onPressed: () {
+              // TODO: Navigate to settings
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Settings coming soon')),
+              );
+            },
+          ),
+        ],
+      ),
+      body: authState.when(
+        data: (user) {
+          if (user == null) {
+            return const Center(child: Text('Not signed in'));
+          }
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Welcome section
+                Text(
+                  'Welcome back,',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.onBackground.withOpacity(0.7),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  user.displayName,
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                // Quick actions
+                Text(
+                  'Quick Actions',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Chat action
+                _buildActionCard(
+                  context: context,
+                  icon: Icons.chat_bubble_rounded,
+                  title: 'Start Conversation',
+                  description: 'Talk to your AI companion',
+                  color: theme.colorScheme.primary,
+                  onTap: () {
+                    // TODO: Navigate to chat
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Chat feature coming soon')),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                // Mood check-in action
+                _buildActionCard(
+                  context: context,
+                  icon: Icons.mood_rounded,
+                  title: 'Check-In',
+                  description: 'Log your current mood',
+                  color: theme.colorScheme.secondary,
+                  onTap: () {
+                    // TODO: Navigate to mood check-in
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Mood check-in coming soon')),
+                    );
+                  },
+                ),
+                const SizedBox(height: 32),
+                // Recent activity section
+                Text(
+                  'Your Journey',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Stats cards
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildStatCard(
+                        context: context,
+                        icon: Icons.local_fire_department_rounded,
+                        value: '0',
+                        label: 'Day Streak',
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildStatCard(
+                        context: context,
+                        icon: Icons.check_circle_rounded,
+                        value: '0',
+                        label: 'Check-ins',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 32),
+                // Sign out button
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await ref.read(authNotifierProvider.notifier).signOut();
+                    if (context.mounted) {
+                      context.go(Routes.signIn);
+                    }
+                  },
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('Sign Out'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
+                    side: BorderSide(color: theme.colorScheme.error),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => Center(
+          child: Text('Error: $error'),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionCard({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String description,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 2,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 32, color: color),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onBackground.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: theme.colorScheme.onBackground.withOpacity(0.3),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatCard({
+    required BuildContext context,
+    required IconData icon,
+    required String value,
+    required String label,
+  }) {
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Icon(icon, size: 32, color: theme.colorScheme.primary),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: theme.textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onBackground.withOpacity(0.6),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -2,62 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'routes.dart';
+import '../providers/auth_provider.dart';
+import '../screens/splash/splash_screen.dart';
+import '../screens/onboarding/onboarding_screen.dart';
+import '../screens/disclaimer/disclaimer_screen.dart';
+import '../screens/auth/sign_in_screen.dart';
+import '../screens/auth/sign_up_screen.dart';
+import '../screens/home/home_screen.dart';
 
-// Import screens (will be created later)
-// These are placeholders for now
-class SplashScreen extends StatelessWidget {
-  const SplashScreen({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-}
-
-class OnboardingScreen extends StatelessWidget {
-  const OnboardingScreen({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Onboarding')),
-      );
-}
-
-class DisclaimerScreen extends StatelessWidget {
-  const DisclaimerScreen({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Disclaimer')),
-      );
-}
-
-class SignInScreen extends StatelessWidget {
-  const SignInScreen({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Sign In')),
-      );
-}
-
-class SignUpScreen extends StatelessWidget {
-  const SignUpScreen({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Sign Up')),
-      );
-}
-
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Home')),
-      );
-}
-
+// Placeholder screens for features not yet implemented
 class ChatScreen extends StatelessWidget {
   const ChatScreen({super.key});
   @override
   Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Chat')),
+        body: Center(child: Text('Chat - Coming Soon')),
       );
 }
 
@@ -65,7 +23,7 @@ class MoodScreen extends StatelessWidget {
   const MoodScreen({super.key});
   @override
   Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Mood')),
+        body: Center(child: Text('Mood - Coming Soon')),
       );
 }
 
@@ -73,7 +31,7 @@ class InsightsScreen extends StatelessWidget {
   const InsightsScreen({super.key});
   @override
   Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Insights')),
+        body: Center(child: Text('Insights - Coming Soon')),
       );
 }
 
@@ -81,7 +39,7 @@ class ExercisesScreen extends StatelessWidget {
   const ExercisesScreen({super.key});
   @override
   Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Exercises')),
+        body: Center(child: Text('Exercises - Coming Soon')),
       );
 }
 
@@ -89,14 +47,13 @@ class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
   @override
   Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Settings')),
+        body: Center(child: Text('Settings - Coming Soon')),
       );
 }
 
-/// Router provider
+/// Router provider with auth state integration
 final routerProvider = Provider<GoRouter>((ref) {
-  // TODO: Watch auth state to redirect
-  // final authState = ref.watch(authStateProvider);
+  final authState = ref.watch(authStateProvider);
 
   return GoRouter(
     initialLocation: Routes.splash,
@@ -183,21 +140,53 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ),
 
-    // TODO: Add redirect logic based on auth state
-    // redirect: (context, state) {
-    //   final isAuthenticated = authState.hasValue && authState.value != null;
-    //   final isOnAuthPage = state.matchedLocation.startsWith('/signin') ||
-    //       state.matchedLocation.startsWith('/signup');
-    //
-    //   if (!isAuthenticated && !isOnAuthPage) {
-    //     return Routes.signIn;
-    //   }
-    //
-    //   if (isAuthenticated && isOnAuthPage) {
-    //     return Routes.home;
-    //   }
-    //
-    //   return null;
-    // },
+    // Redirect logic based on auth state
+    redirect: (context, state) {
+      final isAuthLoading = authState.isLoading;
+      final isAuthenticated = authState.hasValue && authState.value != null;
+      final user = authState.value;
+
+      final currentPath = state.matchedLocation;
+
+      // Don't redirect while auth is loading (let splash handle it)
+      if (isAuthLoading && currentPath == Routes.splash) {
+        return null;
+      }
+
+      // Auth pages (can access when not authenticated)
+      final isOnAuthPage = currentPath.startsWith('/signin') ||
+          currentPath.startsWith('/signup') ||
+          currentPath == Routes.onboarding;
+
+      // Public pages
+      final isOnPublicPage = currentPath == Routes.splash || isOnAuthPage;
+
+      // If not authenticated and trying to access protected page
+      if (!isAuthenticated && !isOnPublicPage) {
+        return Routes.signIn;
+      }
+
+      // If authenticated, check onboarding and disclaimer
+      if (isAuthenticated && user != null) {
+        // Skip auth pages if already authenticated
+        if (isOnAuthPage && user.onboardingComplete && user.disclaimerAcceptedAt != null) {
+          return Routes.home;
+        }
+
+        // Force onboarding if not completed
+        if (!user.onboardingComplete && currentPath != Routes.onboarding) {
+          return Routes.onboarding;
+        }
+
+        // Force disclaimer if not accepted
+        if (user.onboardingComplete && 
+            user.disclaimerAcceptedAt == null && 
+            currentPath != Routes.disclaimer) {
+          return Routes.disclaimer;
+        }
+      }
+
+      return null; // No redirect needed
+    },
   );
 });
