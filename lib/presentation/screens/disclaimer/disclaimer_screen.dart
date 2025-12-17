@@ -26,8 +26,16 @@ class _DisclaimerScreenState extends ConsumerState<DisclaimerScreen> {
 
     try {
       await ref.read(authNotifierProvider.notifier).acceptDisclaimer(userId);
+      
+      // Invalidate auth state to force refresh
+      ref.invalidate(authStateProvider);
+      
       if (mounted) {
-        context.go(Routes.home);
+        // Wait a moment for the state to refresh
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (mounted) {
+          context.go(Routes.home);
+        }
       }
     } catch (e) {
       if (mounted) {
