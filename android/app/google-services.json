@@ -1,26 +1,36 @@
 {
   "project_info": {
-    "project_number": "310752496566",
-    "project_id": "mindmate-ai-eada4",
-    "storage_bucket": "mindmate-ai-eada4.firebasestorage.app"
+    "project_number": "137877213010",
+    "project_id": "mindmate-ai-699b5",
+    "storage_bucket": "mindmate-ai-699b5.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:310752496566:android:41ef320f927f0df0d28f17",
+        "mobilesdk_app_id": "1:137877213010:android:6fc05464f968a11527348b",
         "android_client_info": {
           "package_name": "com.mindmate.mindmate_ai"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "137877213010-tk5iurbnm3voj1bitbgejg6j7kbjmpr1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyBlAaiO-AJ1TqHiSKCjOYX-L9eTFVvxWeg"
+          "current_key": "AIzaSyCRoLHBMJELT-84JmXsEpVh1S-p_l65e5k"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "137877213010-tk5iurbnm3voj1bitbgejg6j7kbjmpr1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

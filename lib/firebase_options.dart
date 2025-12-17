@@ -18,29 +18,17 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for iOS - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macOS - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -54,10 +42,51 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBlAaiO-AJ1TqHiSKCjOYX-L9eTFVvxWeg',
-    appId: '1:310752496566:android:41ef320f927f0df0d28f17',
-    messagingSenderId: '310752496566',
-    projectId: 'mindmate-ai-eada4',
-    storageBucket: 'mindmate-ai-eada4.firebasestorage.app',
+    apiKey: 'AIzaSyCRoLHBMJELT-84JmXsEpVh1S-p_l65e5k',
+    appId: '1:137877213010:android:6fc05464f968a11527348b',
+    messagingSenderId: '137877213010',
+    projectId: 'mindmate-ai-699b5',
+    storageBucket: 'mindmate-ai-699b5.firebasestorage.app',
   );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyBEDQWP6vgn0Y4noo0DJFf0X26E75ZGeoA',
+    appId: '1:137877213010:web:88b0a343f281739e27348b',
+    messagingSenderId: '137877213010',
+    projectId: 'mindmate-ai-699b5',
+    authDomain: 'mindmate-ai-699b5.firebaseapp.com',
+    storageBucket: 'mindmate-ai-699b5.firebasestorage.app',
+    measurementId: 'G-KQ36L6ZJXB',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyDBDtaz-38DS1GMNb0b78K6zsjMMcyMv-A',
+    appId: '1:137877213010:ios:8796fcf94ebb1a3627348b',
+    messagingSenderId: '137877213010',
+    projectId: 'mindmate-ai-699b5',
+    storageBucket: 'mindmate-ai-699b5.firebasestorage.app',
+    iosClientId: '137877213010-2ua3csp3ggfgnm73eep1lp210v5g99h2.apps.googleusercontent.com',
+    iosBundleId: 'com.mindmate.mindmateAi',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyDBDtaz-38DS1GMNb0b78K6zsjMMcyMv-A',
+    appId: '1:137877213010:ios:8796fcf94ebb1a3627348b',
+    messagingSenderId: '137877213010',
+    projectId: 'mindmate-ai-699b5',
+    storageBucket: 'mindmate-ai-699b5.firebasestorage.app',
+    iosClientId: '137877213010-2ua3csp3ggfgnm73eep1lp210v5g99h2.apps.googleusercontent.com',
+    iosBundleId: 'com.mindmate.mindmateAi',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyBEDQWP6vgn0Y4noo0DJFf0X26E75ZGeoA',
+    appId: '1:137877213010:web:2df918894710145b27348b',
+    messagingSenderId: '137877213010',
+    projectId: 'mindmate-ai-699b5',
+    authDomain: 'mindmate-ai-699b5.firebaseapp.com',
+    storageBucket: 'mindmate-ai-699b5.firebasestorage.app',
+    measurementId: 'G-S9D621TN8R',
+  );
+
 }
