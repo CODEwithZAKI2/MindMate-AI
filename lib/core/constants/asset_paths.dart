@@ -4,7 +4,6 @@ class AssetPaths {
   static const String _images = 'assets/images';
   static const String _icons = 'assets/icons';
   static const String _animations = 'assets/animations';
-  static const String _fonts = 'assets/fonts';
 
   // Onboarding Images
   static const String onboarding1 = '$_images/onboarding_1.png';

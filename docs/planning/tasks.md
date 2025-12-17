@@ -56,18 +56,25 @@
 - [x] Build Mood History screen (7/30 day views, statistics, trends)
 - [x] Build Chat screen with message list and input
 - [x] Commit 109fb41: mood and chat screens implemented
+- [x] Fix tag visibility in mood screen with proper color contrast
+- [x] Improve UI design (gradients, better spacing, modern look)
+- [x] Create and deploy Firestore security rules
+- [x] Set up Cloud Functions project structure (TypeScript)
+- [x] Implement chat endpoint with Gemini API integration
+- [x] Add crisis keyword detection in Cloud Functions
+- [x] Integrate Cloud Functions with Flutter app
+- [x] Add cloud_functions package to Flutter
 
 ### 🔄 In Progress
-- [ ] Set up Cloud Functions for AI backend
-- [ ] Integrate Gemini API for chat responses
+- [ ] Test Cloud Functions chat endpoint
+- [ ] Configure Gemini API key in Firebase
 
 ### 📝 Next Up
-- [ ] Set up Cloud Functions project
-- [ ] Implement /api/chat/message endpoint
-- [ ] Integrate Gemini API with safety prompts
-- [ ] Implement crisis keyword detection
-- [ ] Add crisis response UI
-- [ ] Create Firestore security rules
+- [ ] Deploy Cloud Functions to Firebase
+- [ ] Set up Gemini API key environment variable
+- [ ] Test end-to-end chat flow with AI
+- [ ] Test crisis detection keywords
+- [ ] Improve error handling in chat flow
 - [ ] Test end-to-end user flows
 
 ---
