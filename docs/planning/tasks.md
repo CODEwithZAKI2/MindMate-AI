@@ -51,18 +51,24 @@
 - [x] Create Sign In and Sign Up screens
 - [x] Build Home dashboard
 - [x] Update navigation with auth guards
+- [x] Fix onboarding redirect loop bug (onboardingComplete: true for new sign-ups)
+- [x] Build Mood Check-In screen (1-5 scale, tags, notes)
+- [x] Build Mood History screen (7/30 day views, statistics, trends)
+- [x] Build Chat screen with message list and input
+- [x] Commit 109fb41: mood and chat screens implemented
 
 ### 🔄 In Progress
-- [ ] Build Chat UI screens
-- [ ] Build Mood tracking screens
+- [ ] Set up Cloud Functions for AI backend
+- [ ] Integrate Gemini API for chat responses
 
 ### 📝 Next Up
-- [ ] Implement Chat screen with message list and input
-- [ ] Create Mood check-in screen (1-5 scale)
-- [ ] Create Mood history screen
-- [ ] Set up Cloud Functions for AI chat endpoint
-- [ ] Integrate Gemini API
-- [ ] Implement crisis detection
+- [ ] Set up Cloud Functions project
+- [ ] Implement /api/chat/message endpoint
+- [ ] Integrate Gemini API with safety prompts
+- [ ] Implement crisis keyword detection
+- [ ] Add crisis response UI
+- [ ] Create Firestore security rules
+- [ ] Test end-to-end user flows
 
 ---
 
