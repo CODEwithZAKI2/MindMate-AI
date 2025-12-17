@@ -107,20 +107,34 @@ class _MoodCheckInScreenState extends ConsumerState<MoodCheckInScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Mood emoji display
-            Center(
-              child: Text(
-                _getMoodEmoji(moodScore),
-                style: const TextStyle(fontSize: 80),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: Text(
-                _getMoodLabel(moodScore),
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: _getMoodColor(moodScore, theme),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _getMoodColor(moodScore, theme).withOpacity(0.1),
+                    _getMoodColor(moodScore, theme).withOpacity(0.05),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    _getMoodEmoji(moodScore),
+                    style: const TextStyle(fontSize: 100),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _getMoodLabel(moodScore),
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: _getMoodColor(moodScore, theme),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 32),
@@ -133,15 +147,24 @@ class _MoodCheckInScreenState extends ConsumerState<MoodCheckInScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            Slider(
-              value: moodScore.toDouble(),
-              min: 1,
-              max: 5,
-              divisions: 4,
-              label: moodScore.toString(),
-              onChanged: (value) {
-                ref.read(currentMoodScoreProvider.notifier).state = value.toInt();
-              },
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: _getMoodColor(moodScore, theme),
+                inactiveTrackColor: _getMoodColor(moodScore, theme).withOpacity(0.2),
+                thumbColor: _getMoodColor(moodScore, theme),
+                overlayColor: _getMoodColor(moodScore, theme).withOpacity(0.2),
+                trackHeight: 6,
+              ),
+              child: Slider(
+                value: moodScore.toDouble(),
+                min: 1,
+                max: 5,
+                divisions: 4,
+                label: moodScore.toString(),
+                onChanged: (value) {
+                  ref.read(currentMoodScoreProvider.notifier).state = value.toInt();
+                },
+              ),
             ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -166,8 +189,19 @@ class _MoodCheckInScreenState extends ConsumerState<MoodCheckInScreen> {
               children: _availableTags.map((tag) {
                 final isSelected = selectedTags.contains(tag);
                 return FilterChip(
-                  label: Text(tag),
+                  label: Text(
+                    tag,
+                    style: TextStyle(
+                      color: isSelected 
+                        ? theme.colorScheme.onPrimary 
+                        : theme.colorScheme.onSurface,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
                   selected: isSelected,
+                  selectedColor: theme.colorScheme.primary,
+                  backgroundColor: theme.colorScheme.surfaceVariant,
+                  checkmarkColor: theme.colorScheme.onPrimary,
                   onSelected: (selected) {
                     final newTags = List<String>.from(selectedTags);
                     if (selected) {
@@ -194,9 +228,22 @@ class _MoodCheckInScreenState extends ConsumerState<MoodCheckInScreen> {
               controller: _noteController,
               maxLines: 4,
               maxLength: 500,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'What\'s on your mind?',
-                border: OutlineInputBorder(),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: theme.colorScheme.outline),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: theme.colorScheme.outline),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+                ),
+                filled: true,
+                fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.3),
               ),
             ),
             const SizedBox(height: 32),
@@ -206,13 +253,20 @@ class _MoodCheckInScreenState extends ConsumerState<MoodCheckInScreen> {
               height: 56,
               child: FilledButton.icon(
                 onPressed: _saveMoodLog,
-                icon: const Icon(Icons.check_circle_rounded),
+                icon: const Icon(Icons.check_circle_rounded, size: 24),
                 label: const Text(
                   'Save Mood Log',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
                   ),
+                ),
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 2,
                 ),
               ),
             ),
