@@ -9,16 +9,11 @@ import '../screens/disclaimer/disclaimer_screen.dart';
 import '../screens/auth/sign_in_screen.dart';
 import '../screens/auth/sign_up_screen.dart';
 import '../screens/home/home_screen.dart';
+import '../screens/mood/mood_check_in_screen.dart';
+import '../screens/mood/mood_history_screen.dart';
+import '../screens/chat/chat_screen.dart';
 
 // Placeholder screens for features not yet implemented
-class ChatScreen extends StatelessWidget {
-  const ChatScreen({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Chat - Coming Soon')),
-      );
-}
-
 class MoodScreen extends StatelessWidget {
   const MoodScreen({super.key});
   @override
@@ -94,15 +89,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'home',
         builder: (context, state) => const HomeScreen(),
       ),
+      
+      // Chat routes
       GoRoute(
         path: Routes.chat,
         name: 'chat',
         builder: (context, state) => const ChatScreen(),
       ),
+      
+      // Mood routes
       GoRoute(
-        path: Routes.mood,
-        name: 'mood',
-        builder: (context, state) => const MoodScreen(),
+        path: Routes.moodCheckIn,
+        name: 'moodCheckIn',
+        builder: (context, state) => const MoodCheckInScreen(),
+      ),
+      GoRoute(
+        path: Routes.moodHistory,
+        name: 'moodHistory',
+        builder: (context, state) => const MoodHistoryScreen(),
       ),
       GoRoute(
         path: Routes.insights,

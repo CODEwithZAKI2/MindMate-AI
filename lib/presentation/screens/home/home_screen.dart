@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/user_provider.dart';
 import '../../../core/constants/routes.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -70,10 +69,7 @@ class HomeScreen extends ConsumerWidget {
                   description: 'Talk to your AI companion',
                   color: theme.colorScheme.primary,
                   onTap: () {
-                    // TODO: Navigate to chat
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Chat feature coming soon')),
-                    );
+                    context.push(Routes.chat);
                   },
                 ),
                 const SizedBox(height: 16),
@@ -85,11 +81,7 @@ class HomeScreen extends ConsumerWidget {
                   description: 'Log your current mood',
                   color: theme.colorScheme.secondary,
                   onTap: () {
-                    // TODO: Navigate to mood check-in
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Mood check-in coming soon')),
-                    );
+                    context.push(Routes.moodCheckIn);
                   },
                 ),
                 const SizedBox(height: 32),

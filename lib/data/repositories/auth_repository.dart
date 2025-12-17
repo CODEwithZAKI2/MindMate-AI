@@ -49,7 +49,7 @@ class AuthRepository {
       displayName: displayName,
       createdAt: DateTime.now(),
       lastActiveAt: DateTime.now(),
-      onboardingComplete: false,
+      onboardingComplete: true,
       subscriptionTier: 'free',
       accountStatus: 'active',
     );
@@ -76,7 +76,7 @@ class AuthRepository {
       displayName: firebaseUser.displayName ?? 'User',
       createdAt: DateTime.now(),
       lastActiveAt: DateTime.now(),
-      onboardingComplete: false,
+      onboardingComplete: true,
       subscriptionTier: 'free',
       accountStatus: 'active',
     );
