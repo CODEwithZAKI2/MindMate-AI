@@ -259,17 +259,7 @@ export const chat = onCall(
 
       const now = admin.firestore.Timestamp.now();
 
-      await sessionRef.update({
-        messages: admin.firestore.FieldValue.arrayUnion({
-          role: "user",
-          content: message,
-          timestamp: now,
-          safetyFlagged: false,
-        }),
-        messageCount: admin.firestore.FieldValue.increment(1),
-        lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
+      // Only save AI response (user message already saved by Flutter for immediate display)
       await sessionRef.update({
         messages: admin.firestore.FieldValue.arrayUnion({
           role: "assistant",

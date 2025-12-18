@@ -93,6 +93,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // Clear input immediately
     _messageController.clear();
     
+    // Save user message immediately to Firestore for instant display
+    try {
+      await ref.read(chatRepositoryProvider).addMessageToSession(
+        sessionId: sessionId,
+        message: userMessage,
+      );
+    } catch (e) {
+      print('Error saving user message: $e');
+    }
+    
     // Set loading state for AI response
     ref.read(chatLoadingProvider.notifier).state = true;
 
