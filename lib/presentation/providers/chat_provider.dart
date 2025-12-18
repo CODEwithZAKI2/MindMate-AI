@@ -28,6 +28,13 @@ final chatSessionProvider =
   return chatRepository.getChatSession(sessionId);
 });
 
+/// Stream provider for chat session by ID (real-time updates)
+final chatSessionStreamProvider =
+    StreamProvider.family<ChatSession, String>((ref, sessionId) {
+  final chatRepository = ref.watch(chatRepositoryProvider);
+  return chatRepository.getChatSessionStream(sessionId);
+});
+
 /// Future provider for chat statistics
 final chatStatisticsProvider = FutureProvider.family<Map<String, dynamic>,
     ({String userId, DateTime startDate, DateTime endDate})>((ref, params) {

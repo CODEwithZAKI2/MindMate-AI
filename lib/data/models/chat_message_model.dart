@@ -29,7 +29,7 @@ class ChatMessageModel {
 
   factory ChatMessageModel.fromMap(Map<String, dynamic> data) {
     return ChatMessageModel(
-      id: data['id'] as String,
+      id: data['id'] as String? ?? '',
       role: data['role'] as String,
       content: data['content'] as String,
       timestamp: (data['timestamp'] as Timestamp).toDate(),

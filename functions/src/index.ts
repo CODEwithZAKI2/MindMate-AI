@@ -5,14 +5,13 @@ import {
   HarmBlockThreshold,
 } from "@google/generative-ai";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {defineSecret} from "firebase-functions/params";
 
 // Initialize Firebase Admin
 admin.initializeApp();
 
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(
-  process.env.GEMINI_API_KEY || ""
-);
+// Define secret for Gemini API key
+const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
 // Crisis keywords for pre-AI filtering
 const CRISIS_KEYWORDS = [
@@ -99,11 +98,16 @@ function getCrisisResponse(): string {
  */
 async function generateAIResponse(
   userMessage: string,
-  conversationHistory: Array<{role: string; content: string}>
+  conversationHistory: Array<{role: string; content: string}>,
+  apiKey: string
 ): Promise<string> {
   try {
+    console.log("[generateAIResponse] Starting with message:", userMessage.substring(0, 50));
+    // Initialize Gemini with the provided API key
+    const genAI = new GoogleGenerativeAI(apiKey);
+    console.log("[generateAIResponse] GenAI initialized");
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash",
       systemInstruction: SYSTEM_PROMPT,
       generationConfig: {
         temperature: 0.9,
@@ -138,7 +142,9 @@ async function generateAIResponse(
     }));
 
     const chat = model.startChat({history});
+    console.log("[generateAIResponse] Sending message to Gemini...");
     const result = await chat.sendMessage(userMessage);
+    console.log("[generateAIResponse] Got result from Gemini");
     const response = result.response;
 
     return response.text();
@@ -154,6 +160,7 @@ async function generateAIResponse(
  * Handles incoming chat messages and returns AI responses
  */
 export const chat = onCall(
+  {secrets: ["GEMINI_API_KEY"]},
   async (request): Promise<ChatResponse> => {
     // Verify authentication
     if (!request.auth) {
@@ -164,6 +171,7 @@ export const chat = onCall(
     }
 
     const {userId, sessionId, message, conversationHistory = []} = request.data as ChatRequest;
+    console.log("[chat] Received request for user:", userId, "session:", sessionId);
 
     // Validate inputs
     if (!userId || !sessionId || !message) {
@@ -207,35 +215,42 @@ export const chat = onCall(
       }
 
       // Step 2: Generate AI response
-      const aiResponse = await generateAIResponse(message, conversationHistory);
+      console.log("[chat] Calling generateAIResponse...");
+      const aiResponse = await generateAIResponse(
+        message,
+        conversationHistory,
+        geminiApiKey.value()
+      );
+      console.log("[chat] Got AI response:", aiResponse.substring(0, 50));
 
-      // Step 3: Save message to Firestore
-      const messagesRef = admin.firestore().collection("chat_messages");
-      await messagesRef.add({
-        sessionId,
-        userId,
-        role: "user",
-        content: message,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        isCrisis: false,
-      });
-
-      await messagesRef.add({
-        sessionId,
-        userId,
-        role: "assistant",
-        content: aiResponse,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        isCrisis: false,
-      });
-
-      // Update session last message time
-      await admin.firestore()
+      // Step 3: Save messages to chat_sessions document as array
+      const sessionRef = admin.firestore()
         .collection("chat_sessions")
-        .doc(sessionId)
-        .update({
-          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        .doc(sessionId);
+
+      const now = admin.firestore.Timestamp.now();
+
+      await sessionRef.update({
+        messages: admin.firestore.FieldValue.arrayUnion({
+          role: "user",
+          content: message,
+          timestamp: now,
+          safetyFlagged: false,
+        }),
+        messageCount: admin.firestore.FieldValue.increment(1),
+        lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      await sessionRef.update({
+        messages: admin.firestore.FieldValue.arrayUnion({
+          role: "assistant",
+          content: aiResponse,
+          timestamp: now,
+          safetyFlagged: false,
+        }),
+        messageCount: admin.firestore.FieldValue.increment(1),
+        lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
 
       return {
         success: true,

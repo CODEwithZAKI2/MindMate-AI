@@ -27,6 +27,20 @@ class ChatRepository {
     return ChatSessionModel.fromFirestore(doc).toEntity();
   }
 
+  // Get chat session stream (real-time updates)
+  Stream<ChatSession> getChatSessionStream(String sessionId) {
+    return _firestore
+        .collection('chat_sessions')
+        .doc(sessionId)
+        .snapshots()
+        .map((doc) {
+      if (!doc.exists) {
+        throw Exception('Chat session not found');
+      }
+      return ChatSessionModel.fromFirestore(doc).toEntity();
+    });
+  }
+
   // Get user chat sessions stream (real-time)
   Stream<List<ChatSession>> getChatSessionsStream(String userId) {
     return _firestore
