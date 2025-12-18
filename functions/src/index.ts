@@ -155,11 +155,24 @@ async function generateAIResponse(
       ],
     });
 
-    // Build chat history
-    const history = conversationHistory.slice(-10).map((msg) => ({
+    // Build chat history - ensure it starts with user message
+    let history = conversationHistory.slice(-10).map((msg) => ({
       role: msg.role === "user" ? "user" : "model",
       parts: [{text: msg.content}],
     }));
+
+    // Gemini requires history to start with a user message
+    // If first message is from model, remove it
+    if (history.length > 0 && history[0].role === "model") {
+      console.log("[generateAIResponse] Removing leading model message from history");
+      history = history.slice(1);
+    }
+
+    // If history ends with a user message (which will be repeated), remove it
+    if (history.length > 0 && history[history.length - 1].role === "user") {
+      console.log("[generateAIResponse] Removing trailing user message from history");
+      history = history.slice(0, -1);
+    }
 
     const chat = model.startChat({history});
     console.log("[generateAIResponse] Sending message to Gemini...");
