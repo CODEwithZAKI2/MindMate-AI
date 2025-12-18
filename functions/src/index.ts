@@ -101,7 +101,8 @@ async function generateAIResponse(
   conversationHistory: Array<{role: string; content: string}>,
   apiKey: string,
   userName?: string,
-  sessionSummaries?: string[]
+  sessionSummaries?: string[],
+  moodContext?: string
 ): Promise<string> {
   try {
     console.log("[generateAIResponse] Starting with message:", userMessage.substring(0, 50));
@@ -124,6 +125,11 @@ async function generateAIResponse(
         contextualPrompt += `${index + 1}. ${summary}\n`;
       });
       contextualPrompt += `\nUse this context to maintain continuity and reference past discussions when relevant.`;
+    }
+
+    // Add mood context if available
+    if (moodContext) {
+      contextualPrompt += `\n\nRecent Mood Context (last 7 days):\n${moodContext}\nUse this to tailor guidance to the user's recent emotional state. Be gentle if mood is declining.`;
     }
     
     const model = genAI.getGenerativeModel({
@@ -277,9 +283,10 @@ export const chat = onCall(
       }
 
       // Step 2: Fetch user profile and session summaries for context
-      console.log("[chat] Fetching user profile and session summaries...");
+      console.log("[chat] Fetching user profile, summaries, and mood context...");
       let userName: string | undefined;
       let sessionSummaries: string[] = [];
+      let moodContext: string | undefined;
       
       try {
         const userDoc = await admin.firestore()
@@ -304,6 +311,17 @@ export const chat = onCall(
         // Continue without summaries if fetch fails
       }
 
+      // Fetch recent mood logs for context
+      try {
+        moodContext = await fetchRecentMoodContext(userId, 7, 7);
+        if (moodContext) {
+          console.log("[chat] Mood context prepared");
+        }
+      } catch (err) {
+        console.error("[chat] Error fetching mood context:", err);
+        // Continue without mood context if fetch fails
+      }
+
       // Step 3: Generate AI response with enhanced context
       console.log("[chat] Calling generateAIResponse...");
       const aiResponse = await generateAIResponse(
@@ -311,7 +329,8 @@ export const chat = onCall(
         conversationHistory,
         geminiApiKey.value(),
         userName,
-        sessionSummaries
+        sessionSummaries,
+        moodContext
       );
       console.log("[chat] Got AI response:", aiResponse.substring(0, 50));
 
@@ -452,5 +471,67 @@ async function fetchRecentSessionSummaries(
   } catch (error) {
     console.error("[fetchRecentSessionSummaries] Error:", error);
     return [];
+  }
+}
+
+/**
+ * Fetch recent mood context for last N days
+ */
+async function fetchRecentMoodContext(
+  userId: string,
+  days: number = 7,
+  limit: number = 7
+): Promise<string | undefined> {
+  try {
+    const since = admin.firestore.Timestamp.fromDate(
+      new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+    );
+
+    const snapshot = await admin.firestore()
+      .collection("mood_logs")
+      .where("userId", "==", userId)
+      .where("createdAt", ">=", since)
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .get();
+
+    if (snapshot.empty) return undefined;
+
+    const entries: Array<{score: number; createdAt: Date; note?: string; tags?: string[]}> = snapshot.docs.map((doc) => {
+      const data = doc.data() as Record<string, any>;
+      return {
+        score: data.moodScore as number,
+        createdAt: (data.createdAt as admin.firestore.Timestamp).toDate(),
+        note: data.note as string | undefined,
+        tags: (data.tags as string[] | undefined) ?? [],
+      };
+    });
+
+    const scores = entries.map((e) => e.score);
+    const avg = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
+    const latest = entries[0];
+    const oldest = entries[entries.length - 1];
+    const trendDelta = latest.score - oldest.score;
+    const trend = trendDelta > 0 ? "improving" : trendDelta < 0 ? "declining" : "steady";
+
+    // Build compact lines (max ~7 entries)
+    const lines = entries.slice(0, limit).map((e) => {
+      const date = e.createdAt.toISOString().split("T")[0];
+      const noteText = e.note && e.note.trim().length > 0
+        ? ` | note: ${e.note.substring(0, 40)}${e.note.length > 40 ? "..." : ""}`
+        : "";
+      const tagsText = e.tags && e.tags.length > 0
+        ? ` | tags: ${e.tags.join(", ")}`
+        : "";
+      return `- ${date}: ${e.score}/5${noteText}${tagsText}`;
+    });
+
+    return [
+      `Avg: ${avg}/5, Latest: ${latest.score}/5 on ${latest.createdAt.toISOString().split("T")[0]}, Trend: ${trend}`,
+      ...lines,
+    ].join("\n");
+  } catch (error) {
+    console.error("[fetchRecentMoodContext] Error:", error);
+    return undefined;
   }
 }

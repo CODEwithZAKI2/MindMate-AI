@@ -371,13 +371,54 @@ lib/data/repositories/chat_repository.dart (handle summaries)
 
 ---
 
-### Priority 5: Mood Context for AI
+### Priority 5: Mood Context for AI ✅ COMPLETED
 **From:** 05-ai-design.md  
-**Status:** NOT IMPLEMENTED  
+**Status:** IMPLEMENTED (Dec 18, 2025)  
 **Why Critical:** AI designed to receive last 7 days of mood scores (~100 tokens) to enable pattern-aware responses.
 
-**Required for MVP:**
-- [ ] Fetch user's last 7 mood logs before AI call
+**Completed:**
+- [x] Fetch user's last 7 mood logs before AI call
+- [x] Summarize mood trend (avg, latest, trend) and recent entries (date/score)
+- [x] Include mood context in system prompt (~100 tokens)
+- [x] Graceful fallback when no mood logs exist
+- [x] Added Firestore index for mood_logs (userId + createdAt)
+
+**What was implemented:**
+- **fetchRecentMoodContext()** (Cloud Function):
+  - Pulls mood_logs for last 7 days (max 7 entries)
+  - Computes average, latest score/date, and trend (improving/declining/steady)
+  - Formats compact bullet list: date + score (+ optional note/tags truncated)
+  - Returns concise string (~100 tokens target)
+- **generateAIResponse()** updated to accept `moodContext` and inject into system prompt
+- **chat()** flow now fetches mood context alongside user profile and session summaries
+
+**Files modified:**
+```
+functions/src/index.ts (mood context fetch + prompt integration)
+firestore.indexes.json (mood_logs userId + createdAt index)
+```
+
+**Firestore Index Added:**
+```json
+{
+  "collectionGroup": "mood_logs",
+  "fields": [
+    {"fieldPath": "userId", "order": "ASCENDING"},
+    {"fieldPath": "createdAt", "order": "DESCENDING"}
+  ]
+}
+```
+
+**Context Token Estimate:**
+- Mood context: ~100 tokens (7 entries max + summary line)
+- Total context now ~1450/2000 tokens (still ~25% headroom)
+
+**Testing Notes:**
+- Needs at least 1 mood log in last 7 days to appear
+- If no mood logs, AI proceeds without mood context
+- Check Cloud Functions logs for "Mood context prepared" to confirm fetch
+
+---
 - [ ] Format mood context (date, score, note preview)
 - [ ] Add mood context to Gemini API context (~100 tokens)
 - [ ] Update system prompt to reference mood patterns
