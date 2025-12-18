@@ -93,15 +93,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // Clear input immediately
     _messageController.clear();
     
-    // Optimistically add user message to Firestore immediately
-    await ref.read(chatNotifierProvider.notifier).addMessageToSession(
-      sessionId: sessionId,
-      message: userMessage,
-    );
-    
-    // Scroll to show user message
-    _scrollToBottom();
-    
     // Set loading state for AI response
     ref.read(chatLoadingProvider.notifier).state = true;
 
