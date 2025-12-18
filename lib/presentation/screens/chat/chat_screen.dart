@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -433,15 +434,32 @@ class _MessageBubble extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        message.content,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: isUser
-                              ? Colors.white
-                              : Colors.grey[900],
-                          height: 1.4,
+                      if (isUser)
+                        Text(
+                          message.content,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: Colors.white,
+                            height: 1.4,
+                          ),
+                        )
+                      else
+                        MarkdownBody(
+                          data: message.content,
+                          styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                            p: theme.textTheme.bodyLarge?.copyWith(
+                              color: Colors.grey[900],
+                              height: 1.4,
+                            ),
+                            strong: theme.textTheme.bodyLarge?.copyWith(
+                              color: Colors.grey[900],
+                              fontWeight: FontWeight.w700,
+                              height: 1.4,
+                            ),
+                            listBullet: theme.textTheme.bodyLarge?.copyWith(
+                              color: Colors.grey[900],
+                            ),
+                          ),
                         ),
-                      ),
                       if (message.safetyFlagged) ...[
                         const SizedBox(height: 8),
                         Container(

@@ -55,6 +55,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   google_fonts: ^6.2.1
   flutter_svg: ^2.0.16
+  flutter_markdown: ^0.6.23
 
   # Charts & Visualization
   fl_chart: ^0.70.1
