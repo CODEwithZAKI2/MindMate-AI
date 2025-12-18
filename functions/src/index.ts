@@ -194,8 +194,37 @@ export const chat = onCall(
       const isCrisis = detectCrisis(message);
 
       if (isCrisis) {
-        // Return immediate crisis response
+        // Get immediate crisis response
         const crisisResponse = getCrisisResponse();
+
+        // Save both user message and crisis response to Firestore
+        const sessionRef = admin.firestore()
+          .collection("chat_sessions")
+          .doc(sessionId);
+
+        const now = admin.firestore.Timestamp.now();
+
+        await sessionRef.update({
+          messages: admin.firestore.FieldValue.arrayUnion({
+            role: "user",
+            content: message,
+            timestamp: now,
+            safetyFlagged: true,
+          }),
+          messageCount: admin.firestore.FieldValue.increment(1),
+          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        await sessionRef.update({
+          messages: admin.firestore.FieldValue.arrayUnion({
+            role: "assistant",
+            content: crisisResponse,
+            timestamp: now,
+            safetyFlagged: true,
+          }),
+          messageCount: admin.firestore.FieldValue.increment(1),
+          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
 
         // Log crisis event (but don't block response)
         admin.firestore().collection("crisis_logs").add({
