@@ -93,6 +93,18 @@ class HomeScreen extends ConsumerWidget {
                   },
                 ),
                 const SizedBox(height: 16),
+                // Chat history action
+                _buildActionCard(
+                  context: context,
+                  icon: Icons.history_rounded,
+                  title: 'Chat History',
+                  description: 'View past conversations',
+                  color: theme.colorScheme.tertiary,
+                  onTap: () {
+                    context.push(Routes.chatHistory);
+                  },
+                ),
+                const SizedBox(height: 16),
                 // Mood check-in action
                 _buildActionCard(
                   context: context,

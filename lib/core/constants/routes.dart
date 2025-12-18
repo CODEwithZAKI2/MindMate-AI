@@ -13,6 +13,7 @@ class Routes {
   // Main App
   static const String home = '/home';
   static const String chat = '/chat';
+  static const String chatHistory = '/chat-history';
   static const String mood = '/mood';
   static const String insights = '/insights';
   static const String exercises = '/exercises';

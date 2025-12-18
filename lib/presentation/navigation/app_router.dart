@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'routes.dart';
+import '../../core/constants/routes.dart';
 import '../providers/auth_provider.dart';
 import '../screens/splash/splash_screen.dart';
 import '../screens/onboarding/onboarding_screen.dart';
@@ -12,6 +12,7 @@ import '../screens/home/home_screen.dart';
 import '../screens/mood/mood_check_in_screen.dart';
 import '../screens/mood/mood_history_screen.dart';
 import '../screens/chat/chat_screen.dart';
+import '../screens/chat/chat_history_screen.dart';
 
 // Placeholder screens for features not yet implemented
 class MoodScreen extends StatelessWidget {
@@ -95,6 +96,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: Routes.chat,
         name: 'chat',
         builder: (context, state) => const ChatScreen(),
+      ),
+      GoRoute(
+        path: Routes.chatHistory,
+        name: 'chatHistory',
+        builder: (context, state) => const ChatHistoryScreen(),
       ),
       
       // Mood routes
