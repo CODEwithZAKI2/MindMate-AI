@@ -31,6 +31,7 @@ class Routes {
   static const String profile = '/settings/profile';
   static const String notifications = '/settings/notifications';
   static const String privacy = '/settings/privacy';
+  static const String terms = '/settings/terms';
   static const String about = '/settings/about';
   static const String help = '/settings/help';
 

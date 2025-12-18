@@ -13,6 +13,9 @@ import '../screens/mood/mood_check_in_screen.dart';
 import '../screens/mood/mood_history_screen.dart';
 import '../screens/chat/chat_screen.dart';
 import '../screens/chat/chat_history_screen.dart';
+import '../screens/settings/settings_screen.dart';
+import '../screens/settings/privacy_policy_screen.dart';
+import '../screens/settings/terms_of_service_screen.dart';
 
 // Placeholder screens for features not yet implemented
 class MoodScreen extends StatelessWidget {
@@ -36,14 +39,6 @@ class ExercisesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const Scaffold(
         body: Center(child: Text('Exercises - Coming Soon')),
-      );
-}
-
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Settings - Coming Soon')),
       );
 }
 
@@ -128,6 +123,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: Routes.settings,
         name: 'settings',
         builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: Routes.privacy,
+        name: 'privacy',
+        builder: (context, state) => const PrivacyPolicyScreen(),
+      ),
+      GoRoute(
+        path: Routes.terms,
+        name: 'terms',
+        builder: (context, state) => const TermsOfServiceScreen(),
       ),
     ],
 
