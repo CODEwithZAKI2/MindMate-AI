@@ -38,8 +38,9 @@ class _DisclaimerScreenState extends ConsumerState<DisclaimerScreen> {
         }
       }
     } catch (e) {
+      print('Error accepting disclaimer: $e');
       if (mounted) {
-        _showError('Failed to accept disclaimer. Please try again.');
+        _showError('Failed to accept disclaimer: ${e.toString()}');
       }
     } finally {
       if (mounted) {

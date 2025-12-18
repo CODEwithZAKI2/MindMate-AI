@@ -55,6 +55,17 @@ class AuthRepository {
     );
 
     await createUserProfile(user);
+    
+    // Wait to ensure the document is fully written and readable
+    // This prevents race conditions when immediately trying to update it
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    // Verify the document exists before returning
+    final doc = await _firestore.collection('users').doc(firebaseUser.uid).get();
+    if (!doc.exists) {
+      throw Exception('Failed to create user profile. Please try again.');
+    }
+    
     return user;
   }
 
@@ -142,9 +153,24 @@ class AuthRepository {
 
   // Accept disclaimer
   Future<void> acceptDisclaimer(String userId) async {
-    await _firestore.collection('users').doc(userId).update({
-      'disclaimerAcceptedAt': FieldValue.serverTimestamp(),
-    });
+    try {
+      // First verify the document exists
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (!doc.exists) {
+        throw Exception('User document not found. Please sign in again.');
+      }
+      
+      // Now update with disclaimer timestamp
+      await _firestore.collection('users').doc(userId).update({
+        'disclaimerAcceptedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error updating disclaimer: $e');
+      // If update fails, try set with merge as fallback
+      await _firestore.collection('users').doc(userId).set({
+        'disclaimerAcceptedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
   }
 
   // Update timezone
