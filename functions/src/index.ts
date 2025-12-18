@@ -100,7 +100,8 @@ async function generateAIResponse(
   userMessage: string,
   conversationHistory: Array<{role: string; content: string}>,
   apiKey: string,
-  userName?: string
+  userName?: string,
+  sessionSummaries?: string[]
 ): Promise<string> {
   try {
     console.log("[generateAIResponse] Starting with message:", userMessage.substring(0, 50));
@@ -108,10 +109,22 @@ async function generateAIResponse(
     const genAI = new GoogleGenerativeAI(apiKey);
     console.log("[generateAIResponse] GenAI initialized");
     
-    // Add user context to system prompt if name is available
-    const contextualPrompt = userName ? 
-      `${SYSTEM_PROMPT}\n\nUser Profile Context:\n- User's name: ${userName}\n- Use their name occasionally for warmth and personalization` :
-      SYSTEM_PROMPT;
+    // Build contextual prompt with user name and session summaries
+    let contextualPrompt = SYSTEM_PROMPT;
+    
+    // Add user context if available
+    if (userName) {
+      contextualPrompt += `\n\nUser Profile Context:\n- User's name: ${userName}\n- Use their name occasionally for warmth and personalization`;
+    }
+    
+    // Add session summaries for memory continuity
+    if (sessionSummaries && sessionSummaries.length > 0) {
+      contextualPrompt += `\n\nPrevious Conversation Context (Recent Sessions):\n`;
+      sessionSummaries.forEach((summary, index) => {
+        contextualPrompt += `${index + 1}. ${summary}\n`;
+      });
+      contextualPrompt += `\nUse this context to maintain continuity and reference past discussions when relevant.`;
+    }
     
     const model = genAI.getGenerativeModel({
       model: "gemini-2.0-flash",
@@ -250,9 +263,11 @@ export const chat = onCall(
         };
       }
 
-      // Step 2: Fetch user profile for context
-      console.log("[chat] Fetching user profile...");
+      // Step 2: Fetch user profile and session summaries for context
+      console.log("[chat] Fetching user profile and session summaries...");
       let userName: string | undefined;
+      let sessionSummaries: string[] = [];
+      
       try {
         const userDoc = await admin.firestore()
           .collection("users")
@@ -267,13 +282,23 @@ export const chat = onCall(
         // Continue without user name if fetch fails
       }
 
-      // Step 3: Generate AI response
+      // Fetch recent session summaries for better context
+      try {
+        sessionSummaries = await fetchRecentSessionSummaries(userId, sessionId, 5);
+        console.log("[chat] Fetched", sessionSummaries.length, "session summaries");
+      } catch (err) {
+        console.error("[chat] Error fetching session summaries:", err);
+        // Continue without summaries if fetch fails
+      }
+
+      // Step 3: Generate AI response with enhanced context
       console.log("[chat] Calling generateAIResponse...");
       const aiResponse = await generateAIResponse(
         message,
         conversationHistory,
         geminiApiKey.value(),
-        userName
+        userName,
+        sessionSummaries
       );
       console.log("[chat] Got AI response:", aiResponse.substring(0, 50));
 
@@ -296,6 +321,19 @@ export const chat = onCall(
         lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
+      // Check if we should generate a summary (after 10+ messages)
+      const sessionDoc = await sessionRef.get();
+      const sessionData = sessionDoc.data();
+      const messageCount = sessionData?.messageCount || 0;
+      
+      // Generate summary after 10 messages if not already summarized
+      if (messageCount >= 10 && sessionData && !sessionData.summary && sessionData.messages) {
+        console.log("[chat] Triggering summary generation for session:", sessionId);
+        // Trigger summary generation asynchronously (don't wait for it)
+        generateSessionSummary(sessionId, sessionData.messages, geminiApiKey.value())
+          .catch((error) => console.error("Summary generation error:", error));
+      }
+
       return {
         success: true,
         message: "Message processed successfully",
@@ -312,3 +350,94 @@ export const chat = onCall(
     }
   }
 );
+
+/**
+ * Generate a summary of a chat session using Gemini AI
+ */
+async function generateSessionSummary(
+  sessionId: string,
+  messages: Array<{role: string; content: string; timestamp: any}>,
+  apiKey: string
+): Promise<void> {
+  try {
+    console.log("[generateSessionSummary] Starting for session:", sessionId);
+    
+    // Format conversation for summarization
+    const conversationText = messages
+      .map((msg) => `${msg.role === "user" ? "User" : "AI"}: ${msg.content}`)
+      .join("\n\n");
+
+    // Use Gemini to generate a concise summary
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      generationConfig: {
+        temperature: 0.3, // Lower temperature for more factual summaries
+        maxOutputTokens: 150, // Keep summary concise (~2-3 sentences)
+      },
+    });
+
+    const prompt = `Summarize the following mental health support conversation in 2-3 sentences. Focus on the main topics discussed, user's emotional state, and key insights or progress. Be concise and factual.
+
+Conversation:
+${conversationText}
+
+Summary:`;
+
+    const result = await model.generateContent(prompt);
+    const summary = result.response.text().trim();
+
+    console.log("[generateSessionSummary] Generated summary:", summary.substring(0, 100));
+
+    // Save summary to Firestore
+    await admin.firestore()
+      .collection("chat_sessions")
+      .doc(sessionId)
+      .update({
+        summary: summary,
+        summarizedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+    console.log("[generateSessionSummary] Summary saved successfully");
+  } catch (error) {
+    console.error("[generateSessionSummary] Error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch recent session summaries for context
+ */
+async function fetchRecentSessionSummaries(
+  userId: string,
+  currentSessionId: string,
+  limit: number = 5
+): Promise<string[]> {
+  try {
+    const sessionsSnapshot = await admin.firestore()
+      .collection("chat_sessions")
+      .where("userId", "==", userId)
+      .where("summary", "!=", null)
+      .orderBy("summary") // Required for != null query
+      .orderBy("startedAt", "desc")
+      .limit(limit + 1) // Get one extra to filter out current session
+      .get();
+
+    const summaries: string[] = [];
+    
+    sessionsSnapshot.docs.forEach((doc) => {
+      // Skip current session
+      if (doc.id === currentSessionId) return;
+      
+      const data = doc.data();
+      if (data.summary && summaries.length < limit) {
+        summaries.push(data.summary);
+      }
+    });
+
+    return summaries;
+  } catch (error) {
+    console.error("[fetchRecentSessionSummaries] Error:", error);
+    return [];
+  }
+}
