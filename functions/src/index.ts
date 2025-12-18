@@ -99,16 +99,23 @@ function getCrisisResponse(): string {
 async function generateAIResponse(
   userMessage: string,
   conversationHistory: Array<{role: string; content: string}>,
-  apiKey: string
+  apiKey: string,
+  userName?: string
 ): Promise<string> {
   try {
     console.log("[generateAIResponse] Starting with message:", userMessage.substring(0, 50));
     // Initialize Gemini with the provided API key
     const genAI = new GoogleGenerativeAI(apiKey);
     console.log("[generateAIResponse] GenAI initialized");
+    
+    // Add user context to system prompt if name is available
+    const contextualPrompt = userName ? 
+      `${SYSTEM_PROMPT}\n\nUser Profile Context:\n- User's name: ${userName}\n- Use their name occasionally for warmth and personalization` :
+      SYSTEM_PROMPT;
+    
     const model = genAI.getGenerativeModel({
       model: "gemini-2.0-flash",
-      systemInstruction: SYSTEM_PROMPT,
+      systemInstruction: contextualPrompt,
       generationConfig: {
         temperature: 0.9,
         topK: 40,
@@ -243,12 +250,30 @@ export const chat = onCall(
         };
       }
 
-      // Step 2: Generate AI response
+      // Step 2: Fetch user profile for context
+      console.log("[chat] Fetching user profile...");
+      let userName: string | undefined;
+      try {
+        const userDoc = await admin.firestore()
+          .collection("users")
+          .doc(userId)
+          .get();
+        if (userDoc.exists) {
+          userName = userDoc.data()?.displayName;
+          console.log("[chat] User name fetched:", userName);
+        }
+      } catch (err) {
+        console.error("[chat] Error fetching user profile:", err);
+        // Continue without user name if fetch fails
+      }
+
+      // Step 3: Generate AI response
       console.log("[chat] Calling generateAIResponse...");
       const aiResponse = await generateAIResponse(
         message,
         conversationHistory,
-        geminiApiKey.value()
+        geminiApiKey.value(),
+        userName
       );
       console.log("[chat] Got AI response:", aiResponse.substring(0, 50));
 
