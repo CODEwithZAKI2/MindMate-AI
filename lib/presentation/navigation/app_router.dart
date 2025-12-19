@@ -161,6 +161,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isAuthenticated = authState.hasValue && authState.value != null;
       final user = authState.value;
 
+        const disclaimerReminderDays = 180;
+        final needsDisclaimerReminder = user?.disclaimerAcceptedAt != null &&
+          DateTime.now()
+              .difference(user!.disclaimerAcceptedAt!)
+              .inDays >=
+            disclaimerReminderDays;
+
       final currentPath = state.matchedLocation;
 
       // Don't redirect while auth is loading (let splash handle it)
@@ -184,7 +191,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       // If authenticated, check onboarding and disclaimer
       if (isAuthenticated && user != null) {
         // Skip auth pages if already authenticated
-        if (isOnAuthPage && user.onboardingComplete && user.disclaimerAcceptedAt != null) {
+        if (isOnAuthPage &&
+            user.onboardingComplete &&
+            user.disclaimerAcceptedAt != null &&
+            user.ageVerified) {
           return Routes.home;
         }
 
@@ -194,8 +204,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
 
         // Force disclaimer if not accepted
-        if (user.onboardingComplete && 
-            user.disclaimerAcceptedAt == null && 
+        if (user.onboardingComplete &&
+            (!user.ageVerified || user.disclaimerAcceptedAt == null || needsDisclaimerReminder) &&
             currentPath != Routes.disclaimer) {
           return Routes.disclaimer;
         }

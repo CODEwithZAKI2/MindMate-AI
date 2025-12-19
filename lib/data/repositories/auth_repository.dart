@@ -151,25 +151,34 @@ class AuthRepository {
     });
   }
 
-  // Accept disclaimer
-  Future<void> acceptDisclaimer(String userId) async {
+  // Accept disclaimer and optionally verify age
+  Future<void> acceptDisclaimer(
+    String userId, {
+    required bool isAgeVerified,
+  }) async {
+    final updates = {
+      'disclaimerAcceptedAt': FieldValue.serverTimestamp(),
+      'ageVerified': isAgeVerified,
+      'ageVerifiedAt': isAgeVerified
+          ? FieldValue.serverTimestamp()
+          : FieldValue.delete(),
+    };
+
     try {
-      // First verify the document exists
+      // Verify the document exists before update
       final doc = await _firestore.collection('users').doc(userId).get();
       if (!doc.exists) {
         throw Exception('User document not found. Please sign in again.');
       }
-      
-      // Now update with disclaimer timestamp
-      await _firestore.collection('users').doc(userId).update({
-        'disclaimerAcceptedAt': FieldValue.serverTimestamp(),
-      });
+
+      await _firestore.collection('users').doc(userId).update(updates);
     } catch (e) {
       print('Error updating disclaimer: $e');
-      // If update fails, try set with merge as fallback
-      await _firestore.collection('users').doc(userId).set({
-        'disclaimerAcceptedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      // Fallback: create/merge the document to ensure fields are stored
+      await _firestore.collection('users').doc(userId).set(
+        updates,
+        SetOptions(merge: true),
+      );
     }
   }
 

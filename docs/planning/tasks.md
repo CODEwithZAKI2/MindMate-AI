@@ -434,19 +434,23 @@ functions/src/index.ts (fetch mood logs, add to context)
 
 ### Priority 6: Age Gate & Disclaimer Enhancement
 **From:** 02-feature-breakdown.md  
-**Status:** PARTIAL - Disclaimer exists but no age gate  
-**Why Critical:** Feature breakdown specifies 18+ requirement with verification prompt. App store requirement for health/wellness apps.
+**Status:** ✅ COMPLETED (Dec 19, 2025)  
+**Why Critical:** 18+ verification is a store requirement; disclaimer must be reaffirmed periodically.
 
-**Required for MVP:**
-- [ ] Add age verification prompt before disclaimer
-- [ ] Block users under 18 with message to seek appropriate resources
-- [ ] Store age verification status in user document
-- [ ] Update disclaimer with periodic reminders (05-ai-design.md mentions this)
+**Delivered:**
+- [x] Age verification prompt on disclaimer (18+ required, under-18 blocked with guidance)
+- [x] Store `ageVerified` + `ageVerifiedAt` + `disclaimerAcceptedAt` with safe merge fallback
+- [x] Router re-prompts disclaimer if not age verified or if last acceptance is older than 180 days
+- [x] Accept button gated behind age confirmation and explicit disclaimer acceptance
 
-**Files to modify:**
+**Files modified:**
 ```
 lib/presentation/screens/disclaimer/disclaimer_screen.dart
-lib/data/models/user_model.dart (add ageVerified field)
+lib/presentation/navigation/app_router.dart
+lib/data/models/user_model.dart
+lib/domain/entities/user.dart
+lib/data/repositories/auth_repository.dart
+lib/presentation/providers/auth_provider.dart
 ```
 
 ---

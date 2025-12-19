@@ -112,10 +112,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  // Accept disclaimer
-  Future<void> acceptDisclaimer(String userId) async {
+  // Accept disclaimer with age verification
+  Future<void> acceptDisclaimer(String userId, {required bool isAgeVerified}) async {
     try {
-      await _authRepository.acceptDisclaimer(userId);
+      await _authRepository.acceptDisclaimer(userId, isAgeVerified: isAgeVerified);
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
       rethrow;

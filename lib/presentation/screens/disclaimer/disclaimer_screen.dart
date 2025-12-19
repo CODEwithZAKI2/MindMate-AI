@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../../core/constants/routes.dart';
 
+enum AgeOption { over18, under18 }
+
 class DisclaimerScreen extends ConsumerStatefulWidget {
   const DisclaimerScreen({super.key});
 
@@ -14,6 +16,7 @@ class DisclaimerScreen extends ConsumerStatefulWidget {
 class _DisclaimerScreenState extends ConsumerState<DisclaimerScreen> {
   bool _isAccepted = false;
   bool _isLoading = false;
+  AgeOption? _ageOption;
 
   Future<void> _acceptDisclaimer() async {
     final userId = ref.read(currentUserIdProvider);
@@ -22,10 +25,22 @@ class _DisclaimerScreenState extends ConsumerState<DisclaimerScreen> {
       return;
     }
 
+    if (_ageOption != AgeOption.over18) {
+      _showError('You must confirm you are 18 or older to continue.');
+      return;
+    }
+
+    if (!_isAccepted) {
+      _showError('Please accept the disclaimer to continue.');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      await ref.read(authNotifierProvider.notifier).acceptDisclaimer(userId);
+      await ref
+          .read(authNotifierProvider.notifier)
+          .acceptDisclaimer(userId, isAgeVerified: true);
       
       // Invalidate auth state to force refresh
       ref.invalidate(authStateProvider);
@@ -128,6 +143,49 @@ class _DisclaimerScreenState extends ConsumerState<DisclaimerScreen> {
                           'Your conversations and data are encrypted and stored securely. We respect your privacy and follow GDPR guidelines. By continuing, you agree to our Privacy Policy and Terms of Service.',
                       theme: theme,
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Age Verification (Required)',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    RadioListTile<AgeOption>(
+                      title: const Text('I am 18 years or older'),
+                      value: AgeOption.over18,
+                      groupValue: _ageOption,
+                      onChanged: (value) {
+                        setState(() => _ageOption = value);
+                      },
+                    ),
+                    RadioListTile<AgeOption>(
+                      title: const Text('I am under 18'),
+                      value: AgeOption.under18,
+                      groupValue: _ageOption,
+                      onChanged: (value) {
+                        setState(() => _ageOption = value);
+                      },
+                    ),
+                    if (_ageOption == AgeOption.under18) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.errorContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'MindMate AI is for users 18+ only. If you are under 18, please seek support from a trusted adult or local helplines.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onErrorContainer,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     // Acceptance checkbox
                     CheckboxListTile(
@@ -153,7 +211,9 @@ class _DisclaimerScreenState extends ConsumerState<DisclaimerScreen> {
                 width: double.infinity,
                 height: 56,
                 child: FilledButton(
-                  onPressed: _isAccepted && !_isLoading ? _acceptDisclaimer : null,
+                  onPressed: _ageOption == AgeOption.over18 && _isAccepted && !_isLoading
+                      ? _acceptDisclaimer
+                      : null,
                   child: _isLoading
                       ? const SizedBox(
                           height: 24,

@@ -9,6 +9,8 @@ class User extends Equatable {
   final DateTime lastActiveAt;
   final bool onboardingComplete;
   final DateTime? disclaimerAcceptedAt;
+  final bool ageVerified;
+  final DateTime? ageVerifiedAt;
   final String subscriptionTier; // 'free' or 'premium'
   final DateTime? subscriptionExpiresAt;
   final String timezone;
@@ -23,6 +25,8 @@ class User extends Equatable {
     required this.lastActiveAt,
     required this.onboardingComplete,
     this.disclaimerAcceptedAt,
+    this.ageVerified = false,
+    this.ageVerifiedAt,
     this.subscriptionTier = 'free',
     this.subscriptionExpiresAt,
     this.timezone = 'UTC',
@@ -45,6 +49,8 @@ class User extends Equatable {
     DateTime? lastActiveAt,
     bool? onboardingComplete,
     DateTime? disclaimerAcceptedAt,
+    bool? ageVerified,
+    DateTime? ageVerifiedAt,
     String? subscriptionTier,
     DateTime? subscriptionExpiresAt,
     String? timezone,
@@ -59,6 +65,8 @@ class User extends Equatable {
       lastActiveAt: lastActiveAt ?? this.lastActiveAt,
       onboardingComplete: onboardingComplete ?? this.onboardingComplete,
       disclaimerAcceptedAt: disclaimerAcceptedAt ?? this.disclaimerAcceptedAt,
+        ageVerified: ageVerified ?? this.ageVerified,
+        ageVerifiedAt: ageVerifiedAt ?? this.ageVerifiedAt,
       subscriptionTier: subscriptionTier ?? this.subscriptionTier,
       subscriptionExpiresAt:
           subscriptionExpiresAt ?? this.subscriptionExpiresAt,
@@ -77,6 +85,8 @@ class User extends Equatable {
         lastActiveAt,
         onboardingComplete,
         disclaimerAcceptedAt,
+        ageVerified,
+        ageVerifiedAt,
         subscriptionTier,
         subscriptionExpiresAt,
         timezone,

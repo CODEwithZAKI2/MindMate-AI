@@ -10,6 +10,8 @@ class UserModel {
   final DateTime lastActiveAt;
   final bool onboardingComplete;
   final DateTime? disclaimerAcceptedAt;
+  final bool ageVerified;
+  final DateTime? ageVerifiedAt;
   final String subscriptionTier;
   final DateTime? subscriptionExpiresAt;
   final String timezone;
@@ -24,6 +26,8 @@ class UserModel {
     required this.lastActiveAt,
     required this.onboardingComplete,
     this.disclaimerAcceptedAt,
+    this.ageVerified = false,
+    this.ageVerifiedAt,
     this.subscriptionTier = 'free',
     this.subscriptionExpiresAt,
     this.timezone = 'UTC',
@@ -41,6 +45,8 @@ class UserModel {
       lastActiveAt: user.lastActiveAt,
       onboardingComplete: user.onboardingComplete,
       disclaimerAcceptedAt: user.disclaimerAcceptedAt,
+      ageVerified: user.ageVerified,
+      ageVerifiedAt: user.ageVerifiedAt,
       subscriptionTier: user.subscriptionTier,
       subscriptionExpiresAt: user.subscriptionExpiresAt,
       timezone: user.timezone,
@@ -61,6 +67,10 @@ class UserModel {
       onboardingComplete: data['onboardingComplete'] as bool? ?? false,
       disclaimerAcceptedAt: data['disclaimerAcceptedAt'] != null
           ? (data['disclaimerAcceptedAt'] as Timestamp).toDate()
+          : null,
+        ageVerified: data['ageVerified'] as bool? ?? false,
+        ageVerifiedAt: data['ageVerifiedAt'] != null
+          ? (data['ageVerifiedAt'] as Timestamp).toDate()
           : null,
       subscriptionTier: data['subscriptionTier'] as String? ?? 'free',
       subscriptionExpiresAt: data['subscriptionExpiresAt'] != null
@@ -83,6 +93,10 @@ class UserModel {
       'disclaimerAcceptedAt': disclaimerAcceptedAt != null
           ? Timestamp.fromDate(disclaimerAcceptedAt!)
           : null,
+        'ageVerified': ageVerified,
+        'ageVerifiedAt': ageVerifiedAt != null
+          ? Timestamp.fromDate(ageVerifiedAt!)
+          : null,
       'subscriptionTier': subscriptionTier,
       'subscriptionExpiresAt': subscriptionExpiresAt != null
           ? Timestamp.fromDate(subscriptionExpiresAt!)
@@ -103,6 +117,8 @@ class UserModel {
       lastActiveAt: lastActiveAt,
       onboardingComplete: onboardingComplete,
       disclaimerAcceptedAt: disclaimerAcceptedAt,
+      ageVerified: ageVerified,
+      ageVerifiedAt: ageVerifiedAt,
       subscriptionTier: subscriptionTier,
       subscriptionExpiresAt: subscriptionExpiresAt,
       timezone: timezone,
