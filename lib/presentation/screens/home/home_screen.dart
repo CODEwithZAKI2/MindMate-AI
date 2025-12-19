@@ -113,6 +113,18 @@ class HomeScreen extends ConsumerWidget {
                     context.push(Routes.moodCheckIn);
                   },
                 ),
+                const SizedBox(height: 16),
+                // Mood history / insights action
+                _buildActionCard(
+                  context: context,
+                  icon: Icons.insights_rounded,
+                  title: 'Mood History',
+                  description: 'View 7/30-day trends & insights',
+                  color: theme.colorScheme.primary,
+                  onTap: () {
+                    context.push(Routes.moodHistory);
+                  },
+                ),
                 const SizedBox(height: 32),
                 // Recent activity section
                 Text(

@@ -457,19 +457,22 @@ lib/presentation/providers/auth_provider.dart
 
 ### Priority 7: Complete Mood Analytics
 **From:** 01-product-specification.md, 02-feature-breakdown.md  
-**Status:** PARTIAL - Only 7-day view implemented  
-**Why Critical:** MVP specifies "Basic mood history view (7-day trend)" as completed, but planning docs show 30-day view as part of core features.
+**Status:** ✅ COMPLETED (Dec 19, 2025)  
+**Why Critical:** 30-day analytics, patterns, and insights are part of core MVP.
 
-**Required for MVP:**
-- [ ] Extend MoodHistoryScreen to 30-day view
-- [ ] Add mood pattern identification
-- [ ] Implement basic weekly insights
-- [ ] Add mood trend calculations (improving, declining, stable)
-- [ ] Link mood logs with chat sessions (moodAtStart, moodAtEnd fields exist)
+**Delivered:**
+- [x] 7/30-day toggle with extended analytics
+- [x] Pattern insights: best/worst day, best weekday, current streak, common tags
+- [x] Weekly insight: week-over-week % change, trend card fixed to use map data
+- [x] Repository uses `createdAt` consistently (fixes prior "timestamp" mismatch)
+- [x] New mood insights provider powering UI cards
 
-**Files to modify:**
+**Notes:** Chat-session linkage (moodAtStart/moodAtEnd) remains available in data model but is not surfaced in UI yet.
+
+**Files modified:**
 ```
 lib/presentation/screens/mood/mood_history_screen.dart
+lib/presentation/providers/mood_provider.dart
 lib/data/repositories/mood_repository.dart
 ```
 

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+
+import '../../../core/constants/routes.dart';
+import '../../../domain/entities/mood_log.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/mood_provider.dart';
-import '../../../domain/entities/mood_log.dart';
-import '../../../core/constants/routes.dart';
-import 'package:go_router/go_router.dart';
 
 class MoodHistoryScreen extends ConsumerStatefulWidget {
   const MoodHistoryScreen({super.key});
@@ -15,31 +16,12 @@ class MoodHistoryScreen extends ConsumerStatefulWidget {
 }
 
 class _MoodHistoryScreenState extends ConsumerState<MoodHistoryScreen> {
-  bool _show7Days = true; // true = 7 days, false = 30 days
+  bool _show7Days = true;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final userId = ref.watch(currentUserIdProvider);
-
-    if (userId == null) {
-      return const Scaffold(
-        body: Center(child: Text('Please sign in to view mood history')),
-      );
-    }
-
-    final moodLogsAsync = ref.watch(_show7Days
-        ? last7DaysMoodLogsProvider(userId)
-        : last30DaysMoodLogsProvider(userId));
-    final statsAsync = ref.watch(moodStatisticsProvider((
-      userId: userId,
-      startDate: DateTime.now().subtract(Duration(days: _show7Days ? 7 : 30)),
-      endDate: DateTime.now(),
-    )));
-    final trendAsync = ref.watch(moodTrendProvider((
-      userId: userId,
-      days: _show7Days ? 7 : 30,
-    )));
+    final authState = ref.watch(authStateProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -48,185 +30,342 @@ class _MoodHistoryScreenState extends ConsumerState<MoodHistoryScreen> {
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
             onPressed: () => context.push(Routes.moodCheckIn),
-            tooltip: 'Add Mood Log',
+            tooltip: 'Log mood',
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(last7DaysMoodLogsProvider);
-          ref.invalidate(last30DaysMoodLogsProvider);
-          ref.invalidate(moodStatisticsProvider);
-          ref.invalidate(moodTrendProvider);
-        },
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Time range toggle
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(value: true, label: Text('7 Days')),
-                  ButtonSegment(value: false, label: Text('30 Days')),
-                ],
-                selected: {_show7Days},
-                onSelectionChanged: (Set<bool> newSelection) {
-                  setState(() {
-                    _show7Days = newSelection.first;
-                  });
-                },
-              ),
-              const SizedBox(height: 24),
-
-              // Statistics cards
-              statsAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, stack) => Center(child: Text('Error: $error')),
-                data: (stats) => Row(
-                  children: [
-                    Expanded(
-                      child: _StatCard(
-                        title: 'Average',
-                        value: stats['averageMood']?.toStringAsFixed(1) ?? 'N/A',
-                        emoji: '📊',
-                        color: Colors.blue,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _StatCard(
-                        title: 'Total Logs',
-                        value: stats['totalLogs']?.toString() ?? '0',
-                        emoji: '📝',
-                        color: Colors.purple,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Trend card
-              trendAsync.when(
-                loading: () => const SizedBox.shrink(),
-                error: (error, stack) => const SizedBox.shrink(),
-                data: (trend) => Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Text(
-                          trend == 'improving' ? '📈' : trend == 'declining' ? '📉' : '➡️',
-                          style: const TextStyle(fontSize: 32),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Mood Trend',
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              Text(
-                                trend == 'improving'
-                                    ? 'Improving'
-                                    : trend == 'declining'
-                                        ? 'Declining'
-                                        : 'Stable',
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: trend == 'improving'
-                                      ? Colors.green
-                                      : trend == 'declining'
-                                          ? Colors.red
-                                          : Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Mood logs list
-              Text(
-                'Recent Logs',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              moodLogsAsync.when(
-                loading: () => const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(32.0),
-                    child: CircularProgressIndicator(),
-                  ),
-                ),
-                error: (error, stack) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Text('Error loading mood logs: $error'),
-                  ),
-                ),
-                data: (logs) {
-                  if (logs.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(48.0),
-                        child: Column(
-                          children: [
-                            const Icon(
-                              Icons.sentiment_satisfied_alt_rounded,
-                              size: 80,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No mood logs yet',
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                color: Colors.grey,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Start tracking your mood to see insights',
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                            const SizedBox(height: 24),
-                            FilledButton.icon(
-                              onPressed: () => context.push(Routes.moodCheckIn),
-                              icon: const Icon(Icons.add),
-                              label: const Text('Add First Mood Log'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: logs.length,
-                    itemBuilder: (context, index) {
-                      final log = logs[index];
-                      return _MoodLogCard(log: log);
-                    },
-                  );
-                },
-              ),
-            ],
+      body: SafeArea(
+        child: authState.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Text('Error loading user: $error'),
+            ),
           ),
+          data: (user) {
+            if (user == null) {
+              return _Unauthenticated(onSignIn: () => context.push(Routes.signIn));
+            }
+
+            final moodLogsAsync = ref.watch(moodLogsStreamProvider(user.id));
+
+            return moodLogsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Text('Error loading mood logs: $error'),
+                ),
+              ),
+              data: (logs) {
+                final sortedLogs = [...logs]
+                  ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                final days = _show7Days ? 7 : 30;
+                final windowStart = DateTime.now().subtract(Duration(days: days));
+                final windowLogs = sortedLogs
+                    .where((log) => log.createdAt.isAfter(windowStart))
+                    .toList();
+
+                final currentAvg = _averageMood(windowLogs);
+                final trend = _computeTrend(sortedLogs, days: days);
+                final insights = _computeInsights(
+                  windowLogs: windowLogs,
+                  allLogs: sortedLogs,
+                  days: days,
+                );
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _show7Days ? 'Last 7 days' : 'Last 30 days',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SegmentedButton<bool>(
+                            segments: const [
+                              ButtonSegment(value: true, label: Text('7d')),
+                              ButtonSegment(value: false, label: Text('30d')),
+                            ],
+                            selected: {_show7Days},
+                            onSelectionChanged: (value) {
+                              setState(() {
+                                _show7Days = value.first;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _StatCard(
+                              title: 'Average mood',
+                              value: windowLogs.isEmpty
+                                  ? 'N/A'
+                                  : currentAvg.toStringAsFixed(1),
+                              emoji: '📊',
+                              color: Colors.blue,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _StatCard(
+                              title: 'Logs',
+                              value: windowLogs.length.toString(),
+                              emoji: '📝',
+                              color: Colors.purple,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+                      _TrendCard(trend: trend),
+
+                      const SizedBox(height: 12),
+                      _InsightsCard(
+                        title: _show7Days ? '7-day insights' : '30-day insights',
+                        insights: insights,
+                      ),
+
+                      const SizedBox(height: 24),
+                      Text(
+                        _show7Days ? 'Last 7 days' : 'Last 30 days',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _LogsList(
+                        logs: windowLogs,
+                        theme: theme,
+                        onAddFirst: () => context.push(Routes.moodCheckIn),
+                      ),
+
+                      const SizedBox(height: 24),
+                      Text(
+                        'All logs',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _LogsList(
+                        logs: sortedLogs,
+                        theme: theme,
+                        onAddFirst: () => context.push(Routes.moodCheckIn),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  double _averageMood(List<MoodLog> logs) {
+    if (logs.isEmpty) return 0;
+    final total = logs.fold<int>(0, (sum, log) => sum + log.moodScore);
+    return total / logs.length;
+  }
+
+  Map<String, dynamic> _computeTrend(List<MoodLog> allLogs, {required int days}) {
+    if (allLogs.isEmpty) {
+      return {
+        'label': 'stable',
+        'percent': 0.0,
+      };
+    }
+
+    final now = DateTime.now();
+    final windowStart = now.subtract(Duration(days: days));
+    final prevStart = windowStart.subtract(Duration(days: days));
+
+    final currentLogs = allLogs
+        .where((log) => log.createdAt.isAfter(windowStart))
+        .toList();
+    final prevLogs = allLogs
+        .where((log) =>
+            log.createdAt.isAfter(prevStart) && log.createdAt.isBefore(windowStart))
+        .toList();
+
+    final currentAvg = _averageMood(currentLogs);
+    final prevAvg = _averageMood(prevLogs);
+    final change = currentAvg - prevAvg;
+    final percent = prevAvg > 0 ? (change / prevAvg) * 100 : 0.0;
+
+    final label = change > 0
+        ? 'improving'
+        : change < 0
+            ? 'declining'
+            : 'stable';
+
+    return {
+      'label': label,
+      'percent': percent,
+    };
+  }
+
+  Map<String, dynamic> _computeInsights({
+    required List<MoodLog> windowLogs,
+    required List<MoodLog> allLogs,
+    required int days,
+  }) {
+    if (windowLogs.isEmpty) {
+      return {
+        'bestDay': null,
+        'worstDay': null,
+        'bestWeekday': null,
+        'commonTags': <String>[],
+        'currentStreak': _computeStreak(allLogs),
+        'weekOverWeekChange': 0.0,
+      };
+    }
+
+    final byDate = <String, List<MoodLog>>{};
+    for (final log in windowLogs) {
+      final key = DateFormat('yyyy-MM-dd').format(log.createdAt);
+      byDate.putIfAbsent(key, () => []).add(log);
+    }
+
+    // Find best and worst individual logs (not averages)
+    MoodLog? bestLog;
+    MoodLog? worstLog;
+    
+    for (final log in windowLogs) {
+      if (bestLog == null || log.moodScore > bestLog.moodScore) {
+        bestLog = log;
+      }
+      if (worstLog == null || log.moodScore < worstLog.moodScore) {
+        worstLog = log;
+      }
+    }
+
+    final byWeekday = <int, List<MoodLog>>{};
+    for (final log in windowLogs) {
+      final weekday = log.createdAt.weekday; // 1=Mon
+      byWeekday.putIfAbsent(weekday, () => []).add(log);
+    }
+
+    MapEntry<int, double>? bestWeekday;
+    byWeekday.forEach((weekday, weekdayLogs) {
+      final avg = _averageMood(weekdayLogs);
+      if (bestWeekday == null || avg > bestWeekday!.value) {
+        bestWeekday = MapEntry(weekday, avg);
+      }
+    });
+
+    final tagCounts = <String, int>{};
+    for (final log in windowLogs) {
+      for (final tag in log.tags) {
+        tagCounts[tag] = (tagCounts[tag] ?? 0) + 1;
+      }
+    }
+    final commonTags = tagCounts.entries
+        .toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+
+    final streak = _computeStreak(allLogs);
+    final weekChange = _weekOverWeekChange(allLogs);
+
+    return {
+      'bestDay': bestLog == null
+          ? null
+          : {
+              'dateKey': DateFormat('yyyy-MM-dd').format(bestLog.createdAt),
+              'score': bestLog.moodScore,
+            },
+      'worstDay': worstLog == null
+          ? null
+          : {
+              'dateKey': DateFormat('yyyy-MM-dd').format(worstLog.createdAt),
+              'score': worstLog.moodScore,
+            },
+      'bestWeekday': bestWeekday?.key,
+      'commonTags': commonTags.take(5).map((e) => e.key).toList(),
+      'currentStreak': streak,
+      'weekOverWeekChange': weekChange,
+    };
+  }
+
+  int _computeStreak(List<MoodLog> logs) {
+    if (logs.isEmpty) return 0;
+
+    final dateSet = logs
+        .map((log) => DateUtils.dateOnly(log.createdAt))
+        .toSet();
+
+    var day = DateUtils.dateOnly(DateTime.now());
+    var streak = 0;
+    while (dateSet.contains(day)) {
+      streak += 1;
+      day = day.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
+
+  double _weekOverWeekChange(List<MoodLog> logs) {
+    if (logs.isEmpty) return 0.0;
+
+    final now = DateTime.now();
+    final weekStart = now.subtract(const Duration(days: 7));
+    final prevWeekStart = now.subtract(const Duration(days: 14));
+
+    final thisWeek = logs
+        .where((log) => log.createdAt.isAfter(weekStart))
+        .toList();
+    final lastWeek = logs
+        .where((log) =>
+            log.createdAt.isAfter(prevWeekStart) && log.createdAt.isBefore(weekStart))
+        .toList();
+
+    final thisAvg = _averageMood(thisWeek);
+    final lastAvg = _averageMood(lastWeek);
+
+    if (lastAvg == 0) return 0.0;
+    return ((thisAvg - lastAvg) / lastAvg) * 100;
+  }
+}
+
+class _Unauthenticated extends StatelessWidget {
+  final VoidCallback onSignIn;
+
+  const _Unauthenticated({required this.onSignIn});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_outline, size: 64, color: Colors.grey),
+            const SizedBox(height: 12),
+            Text(
+              'Sign in to view mood history',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: onSignIn,
+              child: const Text('Sign in'),
+            ),
+          ],
         ),
       ),
     );
@@ -266,6 +405,7 @@ class _StatCard extends StatelessWidget {
                 color: color,
               ),
             ),
+            const SizedBox(height: 4),
             Text(
               title,
               style: theme.textTheme.bodySmall?.copyWith(
@@ -275,6 +415,274 @@ class _StatCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TrendCard extends StatelessWidget {
+  final Map<String, dynamic> trend;
+
+  const _TrendCard({required this.trend});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = trend['label'] as String? ?? 'stable';
+    final percent = (trend['percent'] as num? ?? 0).toDouble();
+    final color = label == 'improving'
+        ? Colors.green
+        : label == 'declining'
+            ? Colors.red
+            : Colors.grey;
+    final emoji = label == 'improving'
+        ? '📈'
+        : label == 'declining'
+            ? '📉'
+            : '➡️';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 32)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Mood trend',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    label == 'improving'
+                        ? 'Improving'
+                        : label == 'declining'
+                            ? 'Declining'
+                            : 'Stable',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    percent == 0
+                        ? 'No change vs previous period'
+                        : '${percent > 0 ? '+' : ''}${percent.toStringAsFixed(1)}% vs previous period',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InsightRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _InsightRow({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InsightsCard extends StatelessWidget {
+  final String title;
+  final Map<String, dynamic> insights;
+
+  const _InsightsCard({
+    required this.title,
+    required this.insights,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bestDay = insights['bestDay'] as Map<String, dynamic>?;
+    final worstDay = insights['worstDay'] as Map<String, dynamic>?;
+    final bestWeekday = insights['bestWeekday'] as int?;
+    final tags = (insights['commonTags'] as List<dynamic>? ?? []).cast<String>();
+    final streak = insights['currentStreak'] as int? ?? 0;
+    final weekChange = (insights['weekOverWeekChange'] as num? ?? 0).toDouble();
+
+    String formatDay(Map<String, dynamic>? day) {
+      if (day == null) return 'N/A';
+      final dt = DateTime.parse(day['dateKey'] as String);
+      final score = day['score'] as int;
+      return '${DateFormat('MMM d').format(dt)} • $score/5';
+    }
+
+    String weekdayLabel(int? weekday) {
+      const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      if (weekday == null || weekday < 1 || weekday > 7) return 'N/A';
+      return names[weekday - 1];
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text('💡', style: TextStyle(fontSize: 24)),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _InsightRow(
+              label: 'Current streak',
+              value: streak > 0 ? '$streak days' : 'No streak yet',
+            ),
+            _InsightRow(
+              label: 'Best day',
+              value: formatDay(bestDay),
+            ),
+            _InsightRow(
+              label: 'Lowest day',
+              value: formatDay(worstDay),
+            ),
+            _InsightRow(
+              label: 'Best weekday',
+              value: weekdayLabel(bestWeekday),
+            ),
+            _InsightRow(
+              label: 'Week over week',
+              value: weekChange == 0
+                  ? 'No change'
+                  : '${weekChange > 0 ? '+' : ''}${weekChange.toStringAsFixed(1)}% vs last week',
+            ),
+            if (tags.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Common tags',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: tags
+                    .map((tag) => Chip(
+                          label: Text(tag),
+                          backgroundColor:
+                              theme.colorScheme.primary.withOpacity(0.1),
+                          labelStyle: TextStyle(
+                            color: theme.colorScheme.primary,
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LogsList extends StatelessWidget {
+  final List<MoodLog> logs;
+  final ThemeData theme;
+  final VoidCallback onAddFirst;
+
+  const _LogsList({
+    required this.logs,
+    required this.theme,
+    required this.onAddFirst,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (logs.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(48.0),
+          child: Column(
+            children: [
+              const Icon(
+                Icons.sentiment_satisfied_alt_rounded,
+                size: 80,
+                color: Colors.grey,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No mood logs yet',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Start tracking your mood to see insights',
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: onAddFirst,
+                icon: const Icon(Icons.add),
+                label: const Text('Add First Mood Log'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: logs.length,
+      itemBuilder: (context, index) {
+        final log = logs[index];
+        return _MoodLogCard(log: log);
+      },
     );
   }
 }
@@ -293,9 +701,7 @@ class _MoodLogCard extends ConsumerWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
-        onTap: () {
-          // Could show detail dialog here
-        },
+        onTap: () {},
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16.0),

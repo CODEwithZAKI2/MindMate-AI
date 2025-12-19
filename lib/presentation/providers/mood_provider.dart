@@ -49,6 +49,16 @@ final moodTrendProvider = FutureProvider.family<Map<String, dynamic>,
   );
 });
 
+/// Future provider for mood insights (patterns, streaks, tags)
+final moodInsightsProvider = FutureProvider.family<Map<String, dynamic>,
+    ({String userId, int days})>((ref, params) {
+  final moodRepository = ref.watch(moodRepositoryProvider);
+  return moodRepository.getMoodInsights(
+    userId: params.userId,
+    days: params.days,
+  );
+});
+
 /// State notifier for mood actions
 class MoodNotifier extends StateNotifier<AsyncValue<void>> {
   final MoodRepository _moodRepository;

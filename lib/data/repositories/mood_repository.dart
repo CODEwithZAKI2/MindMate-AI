@@ -32,7 +32,7 @@ class MoodRepository {
     return _firestore
         .collection('mood_logs')
         .where('userId', isEqualTo: userId)
-        .orderBy('timestamp', descending: true)
+        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => MoodLogModel.fromFirestore(doc).toEntity())
@@ -48,7 +48,7 @@ class MoodRepository {
     Query query = _firestore
         .collection('mood_logs')
         .where('userId', isEqualTo: userId)
-        .orderBy('timestamp', descending: true)
+      .orderBy('createdAt', descending: true)
         .limit(limit);
 
     if (startAfter != null) {
@@ -70,9 +70,9 @@ class MoodRepository {
     final snapshot = await _firestore
         .collection('mood_logs')
         .where('userId', isEqualTo: userId)
-        .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
-        .where('timestamp', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
-        .orderBy('timestamp', descending: true)
+        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+        .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
+        .orderBy('createdAt', descending: true)
         .get();
 
     return snapshot.docs
@@ -212,6 +212,123 @@ class MoodRepository {
       'change': change,
       'percentChange': percentChange,
       'trend': change > 0 ? 'improving' : change < 0 ? 'declining' : 'stable',
+    };
+  }
+
+  // Compute mood insights for a given window
+  Future<Map<String, dynamic>> getMoodInsights({
+    required String userId,
+    required int days,
+  }) async {
+    final now = DateTime.now();
+    final startDate = now.subtract(Duration(days: days));
+    final logs = await getMoodLogsByDateRange(
+      userId: userId,
+      startDate: startDate,
+      endDate: now,
+    );
+
+    if (logs.isEmpty) {
+      return {
+        'averageMood': 0.0,
+        'totalLogs': 0,
+        'currentStreak': 0,
+        'bestDay': null,
+        'worstDay': null,
+        'bestWeekday': null,
+        'commonTags': <String>[],
+        'weekOverWeekChange': 0.0,
+      };
+    }
+
+    // Group logs by date (YYYY-MM-DD)
+    final dailyGroups = <String, List<MoodLog>>{};
+    for (final log in logs) {
+      final key = DateTime(log.createdAt.year, log.createdAt.month, log.createdAt.day)
+          .toIso8601String();
+      dailyGroups.putIfAbsent(key, () => []).add(log);
+    }
+
+    // Daily averages for best/worst day
+    final dailyAverages = dailyGroups.entries.map((entry) {
+      final avg = entry.value.fold<int>(0, (t, l) => t + l.moodScore) / entry.value.length;
+      return {'dateKey': entry.key, 'avg': avg};
+    }).toList();
+
+    dailyAverages.sort((a, b) => (b['avg'] as double).compareTo(a['avg'] as double));
+    final bestDay = dailyAverages.first;
+    final worstDay = dailyAverages.last;
+
+    // Current streak (consecutive days with at least one log, counting back from today)
+    final uniqueDates = dailyGroups.keys
+        .map((k) => DateTime.parse(k))
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    int streak = 0;
+    DateTime cursor = DateTime(now.year, now.month, now.day);
+    for (final date in uniqueDates) {
+      if (date.isAtSameMomentAs(cursor)) {
+        streak += 1;
+        cursor = cursor.subtract(const Duration(days: 1));
+      } else if (date.isAtSameMomentAs(cursor.subtract(const Duration(days: 1)))) {
+        streak += 1;
+        cursor = cursor.subtract(const Duration(days: 1));
+      } else {
+        break;
+      }
+    }
+
+    // Common tags (top 5)
+    final tagCounts = <String, int>{};
+    for (final log in logs) {
+      for (final tag in log.tags) {
+        tagCounts[tag] = (tagCounts[tag] ?? 0) + 1;
+      }
+    }
+    final commonTags = tagCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    // Best weekday by average mood
+    final weekdayScores = <int, List<int>>{}; // 1=Mon..7=Sun
+    for (final log in logs) {
+      final weekday = log.createdAt.weekday;
+      weekdayScores.putIfAbsent(weekday, () => []).add(log.moodScore);
+    }
+    int? bestWeekday;
+    double bestWeekdayAvg = -1;
+    weekdayScores.forEach((weekday, scores) {
+      final avg = scores.reduce((a, b) => a + b) / scores.length;
+      if (avg > bestWeekdayAvg) {
+        bestWeekdayAvg = avg;
+        bestWeekday = weekday;
+      }
+    });
+
+    // Week-over-week change (last 7 vs previous 7 days within window)
+    double _avgForRange(DateTime start, DateTime end) {
+      final rangeLogs = logs.where((log) =>
+          log.createdAt.isAfter(start.subtract(const Duration(milliseconds: 1))) &&
+          log.createdAt.isBefore(end.add(const Duration(milliseconds: 1))));
+      if (rangeLogs.isEmpty) return 0;
+      return rangeLogs.fold<int>(0, (t, l) => t + l.moodScore) / rangeLogs.length;
+    }
+
+    final last7Start = now.subtract(const Duration(days: 7));
+    final prev7Start = now.subtract(const Duration(days: 14));
+    final last7Avg = _avgForRange(last7Start, now);
+    final prev7Avg = _avgForRange(prev7Start, last7Start);
+    final weekOverWeekChange = prev7Avg > 0 ? ((last7Avg - prev7Avg) / prev7Avg) * 100 : 0.0;
+
+    return {
+      'averageMood': logs.fold<int>(0, (t, l) => t + l.moodScore) / logs.length,
+      'totalLogs': logs.length,
+      'currentStreak': streak,
+      'bestDay': bestDay,
+      'worstDay': worstDay,
+      'bestWeekday': bestWeekday,
+      'commonTags': commonTags.take(5).map((e) => e.key).toList(),
+      'weekOverWeekChange': weekOverWeekChange,
     };
   }
 }
