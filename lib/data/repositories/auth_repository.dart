@@ -110,9 +110,29 @@ class AuthRepository {
   // Get user profile
   Future<User> getUserProfile(String userId) async {
     final doc = await _firestore.collection('users').doc(userId).get();
+    
+    // If user document doesn't exist (old users), create a basic profile
     if (!doc.exists) {
-      throw Exception('User profile not found');
+      final firebaseUser = _authService.currentUser;
+      if (firebaseUser == null) {
+        throw Exception('User not authenticated');
+      }
+      
+      final newUser = User(
+        id: userId,
+        email: firebaseUser.email ?? '',
+        displayName: firebaseUser.displayName ?? 'User',
+        createdAt: DateTime.now(),
+        lastActiveAt: DateTime.now(),
+        onboardingComplete: true,
+        subscriptionTier: 'free',
+        accountStatus: 'active',
+      );
+      
+      await createUserProfile(newUser);
+      return newUser;
     }
+    
     final user = UserModel.fromFirestore(doc).toEntity();
     
     // Migration: Fix old users with onboardingComplete: false
@@ -165,20 +185,14 @@ class AuthRepository {
     };
 
     try {
-      // Verify the document exists before update
-      final doc = await _firestore.collection('users').doc(userId).get();
-      if (!doc.exists) {
-        throw Exception('User document not found. Please sign in again.');
-      }
-
-      await _firestore.collection('users').doc(userId).update(updates);
-    } catch (e) {
-      print('Error updating disclaimer: $e');
-      // Fallback: create/merge the document to ensure fields are stored
+      // Use set with merge to handle both create and update cases
       await _firestore.collection('users').doc(userId).set(
         updates,
         SetOptions(merge: true),
       );
+    } catch (e) {
+      print('Error accepting disclaimer: $e');
+      rethrow;
     }
   }
 
