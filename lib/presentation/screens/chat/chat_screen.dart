@@ -24,8 +24,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _showScrollToBottom = false;
-  int _lastMessageCount = 0;
-  bool _initialScrollDone = false;
 
   @override
   void initState() {
@@ -43,9 +41,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _onScroll() {
-    // Show button when scrolled up from bottom (not at max scroll extent)
-    final showButton = _scrollController.hasClients && 
-                      _scrollController.offset < _scrollController.position.maxScrollExtent - 200;
+    // In reversed ListView, position 0 is bottom (latest messages)
+    // Show button when scrolled UP (offset > 200 means we're away from bottom)
+    final showButton = _scrollController.hasClients && _scrollController.offset > 200;
     if (showButton != _showScrollToBottom) {
       setState(() {
         _showScrollToBottom = showButton;
@@ -54,22 +52,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _scrollToBottom({bool animate = true}) {
-    if (_scrollController.hasClients) {
-      // Use post-frame callback to ensure layout is complete
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
-          final maxScroll = _scrollController.position.maxScrollExtent;
-          if (animate) {
-            _scrollController.animateTo(
-              maxScroll,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
-          } else {
-            _scrollController.jumpTo(maxScroll);
-          }
-        }
-      });
+    if (!mounted || !_scrollController.hasClients) return;
+    
+    // In reversed ListView, position 0 is the bottom (latest messages)
+    if (animate) {
+      _scrollController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    } else {
+      _scrollController.jumpTo(0.0);
     }
   }
 
@@ -136,8 +129,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         sessionId: sessionId,
         message: userMessage,
       );
-      // Auto-scroll after user message is saved
-      _scrollToBottom();
     } catch (e) {
       print('Error saving user message: $e');
     }
@@ -180,8 +171,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     } finally {
       ref.read(chatLoadingProvider.notifier).state = false;
-      // Auto-scroll after AI response
-      _scrollToBottom();
     }
   }
 
@@ -275,21 +264,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               data: (session) {
                 final messages = session.messages;
                 
-                // Auto-scroll to bottom on initial load or when new messages arrive
-                if (messages.isNotEmpty) {
-                  if (!_initialScrollDone) {
-                    _initialScrollDone = true;
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _scrollToBottom(animate: false);
-                    });
-                  } else if (messages.length > _lastMessageCount) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _scrollToBottom();
-                    });
-                  }
-                  _lastMessageCount = messages.length;
-                }
-                
                 if (messages.isEmpty) {
                   return Center(
                     child: Column(
@@ -321,16 +295,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   );
                 }
 
-                // Use single consistent ListView for all conversations
+                // Reversed ListView - automatically shows bottom (latest messages) first
+                // Index 0 = latest message (at bottom), so we reverse the display order
+                final totalItems = messages.length + (isLoading ? 1 : 0);
                 return ListView.builder(
                   controller: _scrollController,
+                  reverse: true,
                   padding: const EdgeInsets.all(16.0),
-                  itemCount: messages.length + (isLoading ? 1 : 0),
+                  itemCount: totalItems,
                   itemBuilder: (context, index) {
-                    if (index == messages.length && isLoading) {
+                    // In reversed list: index 0 is at bottom
+                    // Typing indicator should be at bottom (index 0)
+                    if (isLoading && index == 0) {
                       return _TypingIndicatorBubble();
                     }
-                    final message = messages[index];
+                    // Adjust index for messages when loading indicator is shown
+                    final messageIndex = isLoading ? index - 1 : index;
+                    // Reverse the message order so newest appears at index 0
+                    final actualIndex = messages.length - 1 - messageIndex;
+                    if (actualIndex < 0 || actualIndex >= messages.length) return const SizedBox();
+                    final message = messages[actualIndex];
                     return _MessageBubble(message: message);
                   },
                 );
