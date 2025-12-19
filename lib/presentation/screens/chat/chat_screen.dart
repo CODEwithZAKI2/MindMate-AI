@@ -298,6 +298,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 // Reversed ListView - automatically shows bottom (latest messages) first
                 // Index 0 = latest message (at bottom), so we reverse the display order
                 final totalItems = messages.length + (isLoading ? 1 : 0);
+                
+                // For few messages, use Column at top; for many, use reversed ListView at bottom
+                if (totalItems <= 5) {
+                  // Few messages - show at top of screen
+                  return SingleChildScrollView(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ...messages.map((message) => _MessageBubble(message: message)),
+                        if (isLoading) _TypingIndicatorBubble(),
+                      ],
+                    ),
+                  );
+                }
+                
+                // Many messages - use reversed ListView (latest at bottom)
                 return ListView.builder(
                   controller: _scrollController,
                   reverse: true,
