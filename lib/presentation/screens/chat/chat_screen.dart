@@ -101,13 +101,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         }
       });
     }
-    
-    // Auto-scroll to bottom when session loads
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        _scrollToBottom(animate: false);
-      }
-    });
   }
 
   Future<void> _sendMessage() async {
@@ -315,14 +308,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16.0),
+                  reverse: true,
                   itemCount: messages.length + (isLoading ? 1 : 0),
                   itemBuilder: (context, index) {
-                    if (index == messages.length && isLoading) {
-                      // Show typing indicator as last item
+                    // Reverse the order since ListView is reversed
+                    final reversedIndex = messages.length - 1 - index + (isLoading ? 1 : 0);
+                    
+                    if (reversedIndex == messages.length && isLoading) {
+                      // Show typing indicator as first item (bottom in reversed list)
                       return _TypingIndicatorBubble();
                     }
-                    final message = messages[index];
-                    return _MessageBubble(message: message);
+                    
+                    final actualIndex = reversedIndex - (isLoading ? 1 : 0);
+                    if (actualIndex >= 0 && actualIndex < messages.length) {
+                      final message = messages[actualIndex];
+                      return _MessageBubble(message: message);
+                    }
+                    
+                    return const SizedBox.shrink();
                   },
                 );
               },
