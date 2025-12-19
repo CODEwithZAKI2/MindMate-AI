@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../../domain/entities/chat_session.dart';
@@ -492,11 +493,17 @@ class _MessageBubble extends StatelessWidget {
                             ),
                           )
                         else
-                          SelectableText(
-                            message.content,
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              color: Colors.grey[900],
-                              height: 1.4,
+                          MarkdownBody(
+                            data: message.content,
+                            selectable: true,
+                            styleSheet: MarkdownStyleSheet(
+                              p: theme.textTheme.bodyLarge?.copyWith(
+                                color: Colors.grey[900],
+                                height: 1.4,
+                              ),
+                              listBullet: theme.textTheme.bodyLarge?.copyWith(
+                                color: Colors.grey[900],
+                              ),
                             ),
                           ),
                         if (message.safetyFlagged) ...[
