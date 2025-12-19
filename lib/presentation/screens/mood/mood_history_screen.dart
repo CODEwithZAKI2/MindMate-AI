@@ -17,6 +17,15 @@ class MoodHistoryScreen extends ConsumerStatefulWidget {
 
 class _MoodHistoryScreenState extends ConsumerState<MoodHistoryScreen> {
   bool _show7Days = true;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  Set<int> _selectedMoodScores = {};
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +76,24 @@ class _MoodHistoryScreenState extends ConsumerState<MoodHistoryScreen> {
                     .where((log) => log.createdAt.isAfter(windowStart))
                     .toList();
 
+                // Apply filters
+                final filteredLogs = windowLogs.where((log) {
+                  // Search filter
+                  if (_searchQuery.isNotEmpty) {
+                    final searchLower = _searchQuery.toLowerCase();
+                    final matchesNote = log.note?.toLowerCase().contains(searchLower) ?? false;
+                    final matchesTags = log.tags.any((tag) => tag.toLowerCase().contains(searchLower));
+                    if (!matchesNote && !matchesTags) return false;
+                  }
+                  
+                  // Mood score filter
+                  if (_selectedMoodScores.isNotEmpty && !_selectedMoodScores.contains(log.moodScore)) {
+                    return false;
+                  }
+                  
+                  return true;
+                }).toList();
+
                 final currentAvg = _averageMood(windowLogs);
                 final trend = _computeTrend(sortedLogs, days: days);
                 final insights = _computeInsights(
@@ -105,6 +132,7 @@ class _MoodHistoryScreenState extends ConsumerState<MoodHistoryScreen> {
                       ),
                       const SizedBox(height: 16),
 
+                      // Statistics cards
                       Row(
                         children: [
                           Expanded(
@@ -139,29 +167,150 @@ class _MoodHistoryScreenState extends ConsumerState<MoodHistoryScreen> {
                       ),
 
                       const SizedBox(height: 24),
-                      Text(
-                        _show7Days ? 'Last 7 days' : 'Last 30 days',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      _LogsList(
-                        logs: windowLogs,
-                        theme: theme,
-                        onAddFirst: () => context.push(Routes.moodCheckIn),
-                      ),
+                      const Divider(),
+                      const SizedBox(height: 16),
 
-                      const SizedBox(height: 24),
+                      // Search and filter section
                       Text(
-                        'All logs',
+                        'Your mood logs',
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 12),
+
+                      // Search bar
+                      TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search by note or tag...',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _searchQuery = '';
+                                    });
+                                  },
+                                )
+                              : null,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Filter chips
+                      Text(
+                        'Filter by mood',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          FilterChip(
+                            label: const Text('😊 Great'),
+                            selected: _selectedMoodScores.contains(5),
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  _selectedMoodScores.add(5);
+                                } else {
+                                  _selectedMoodScores.remove(5);
+                                }
+                              });
+                            },
+                          ),
+                          FilterChip(
+                            label: const Text('🙂 Good'),
+                            selected: _selectedMoodScores.contains(4),
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  _selectedMoodScores.add(4);
+                                } else {
+                                  _selectedMoodScores.remove(4);
+                                }
+                              });
+                            },
+                          ),
+                          FilterChip(
+                            label: const Text('😐 Okay'),
+                            selected: _selectedMoodScores.contains(3),
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  _selectedMoodScores.add(3);
+                                } else {
+                                  _selectedMoodScores.remove(3);
+                                }
+                              });
+                            },
+                          ),
+                          FilterChip(
+                            label: const Text('😕 Bad'),
+                            selected: _selectedMoodScores.contains(2),
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  _selectedMoodScores.add(2);
+                                } else {
+                                  _selectedMoodScores.remove(2);
+                                }
+                              });
+                            },
+                          ),
+                          FilterChip(
+                            label: const Text('😢 Very Bad'),
+                            selected: _selectedMoodScores.contains(1),
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  _selectedMoodScores.add(1);
+                                } else {
+                                  _selectedMoodScores.remove(1);
+                                }
+                              });
+                            },
+                          ),
+                          if (_selectedMoodScores.isNotEmpty)
+                            ActionChip(
+                              label: const Text('Clear filters'),
+                              onPressed: () {
+                                setState(() {
+                                  _selectedMoodScores.clear();
+                                });
+                              },
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Results count
+                      Text(
+                        'Showing ${filteredLogs.length} of ${windowLogs.length} logs',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Filtered logs list
                       _LogsList(
-                        logs: sortedLogs,
+                        logs: filteredLogs,
                         theme: theme,
                         onAddFirst: () => context.push(Routes.moodCheckIn),
                       ),
