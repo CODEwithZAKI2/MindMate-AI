@@ -52,6 +52,7 @@ class ChatSession extends Equatable {
   final String userId;
   final DateTime startedAt;
   final DateTime? endedAt;
+  final DateTime? lastMessageAt;
   final int messageCount;
   final List<ChatMessage> messages;
   final String? summary;
@@ -63,6 +64,7 @@ class ChatSession extends Equatable {
     required this.userId,
     required this.startedAt,
     this.endedAt,
+    this.lastMessageAt,
     required this.messageCount,
     required this.messages,
     this.summary,
@@ -82,6 +84,7 @@ class ChatSession extends Equatable {
     String? userId,
     DateTime? startedAt,
     DateTime? endedAt,
+    DateTime? lastMessageAt,
     int? messageCount,
     List<ChatMessage>? messages,
     String? summary,
@@ -93,6 +96,7 @@ class ChatSession extends Equatable {
       userId: userId ?? this.userId,
       startedAt: startedAt ?? this.startedAt,
       endedAt: endedAt ?? this.endedAt,
+      lastMessageAt: lastMessageAt ?? this.lastMessageAt,
       messageCount: messageCount ?? this.messageCount,
       messages: messages ?? this.messages,
       summary: summary ?? this.summary,
@@ -107,6 +111,7 @@ class ChatSession extends Equatable {
         userId,
         startedAt,
         endedAt,
+        lastMessageAt,
         messageCount,
         messages,
         summary,

@@ -64,6 +64,7 @@ class ChatSessionModel {
   final String userId;
   final DateTime startedAt;
   final DateTime? endedAt;
+  final DateTime? lastMessageAt;
   final int messageCount;
   final List<ChatMessageModel> messages;
   final String? summary;
@@ -75,6 +76,7 @@ class ChatSessionModel {
     required this.userId,
     required this.startedAt,
     this.endedAt,
+    this.lastMessageAt,
     required this.messageCount,
     required this.messages,
     this.summary,
@@ -88,6 +90,7 @@ class ChatSessionModel {
       userId: session.userId,
       startedAt: session.startedAt,
       endedAt: session.endedAt,
+      lastMessageAt: session.lastMessageAt,
       messageCount: session.messageCount,
       messages: session.messages
           .map((msg) => ChatMessageModel.fromEntity(msg))
@@ -107,6 +110,9 @@ class ChatSessionModel {
       endedAt: data['endedAt'] != null
           ? (data['endedAt'] as Timestamp).toDate()
           : null,
+      lastMessageAt: data['lastMessageAt'] != null
+          ? (data['lastMessageAt'] as Timestamp).toDate()
+          : null,
       messageCount: data['messageCount'] as int,
       messages: (data['messages'] as List? ?? [])
           .map((msg) =>
@@ -123,6 +129,7 @@ class ChatSessionModel {
       'userId': userId,
       'startedAt': Timestamp.fromDate(startedAt),
       'endedAt': endedAt != null ? Timestamp.fromDate(endedAt!) : null,
+      'lastMessageAt': lastMessageAt != null ? Timestamp.fromDate(lastMessageAt!) : null,
       'messageCount': messageCount,
       'messages': messages.map((msg) => msg.toMap()).toList(),
       'summary': summary,
@@ -137,6 +144,7 @@ class ChatSessionModel {
       userId: userId,
       startedAt: startedAt,
       endedAt: endedAt,
+      lastMessageAt: lastMessageAt,
       messageCount: messageCount,
       messages: messages.map((msg) => msg.toEntity()).toList(),
       summary: summary,

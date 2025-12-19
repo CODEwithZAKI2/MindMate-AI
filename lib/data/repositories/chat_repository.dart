@@ -46,7 +46,7 @@ class ChatRepository {
     return _firestore
         .collection('chat_sessions')
         .where('userId', isEqualTo: userId)
-        .orderBy('startedAt', descending: true)
+        .orderBy('lastMessageAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => ChatSessionModel.fromFirestore(doc).toEntity())
@@ -62,7 +62,7 @@ class ChatRepository {
     Query query = _firestore
         .collection('chat_sessions')
         .where('userId', isEqualTo: userId)
-        .orderBy('startedAt', descending: true)
+        .orderBy('lastMessageAt', descending: true)
         .limit(limit);
 
     if (startAfter != null) {
@@ -101,6 +101,7 @@ class ChatRepository {
     await _firestore.collection('chat_sessions').doc(sessionId).update({
       'messages': FieldValue.arrayUnion([messageModel.toMap()]),
       'messageCount': FieldValue.increment(1),
+      'lastMessageAt': Timestamp.fromDate(message.timestamp),
     });
   }
 

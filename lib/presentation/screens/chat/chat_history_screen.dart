@@ -108,11 +108,19 @@ class ChatHistoryScreen extends ConsumerWidget {
   }
 
   Widget _buildSessionsList(BuildContext context, WidgetRef ref, List<ChatSession> sessions) {
+    // Sort sessions by lastMessageAt (fallback to startedAt if null)
+    final sortedSessions = List<ChatSession>.from(sessions)
+      ..sort((a, b) {
+        final aTime = a.lastMessageAt ?? a.startedAt;
+        final bTime = b.lastMessageAt ?? b.startedAt;
+        return bTime.compareTo(aTime); // Descending order (most recent first)
+      });
+    
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: sessions.length,
+      itemCount: sortedSessions.length,
       itemBuilder: (context, index) {
-        final session = sessions[index];
+        final session = sortedSessions[index];
         return _SessionCard(
           session: session,
           onTap: () => _continueSession(context, ref, session.id),
