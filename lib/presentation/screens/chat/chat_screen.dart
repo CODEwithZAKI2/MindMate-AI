@@ -41,9 +41,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _onScroll() {
-    // Show button when scrolled up (away from position 0 which is bottom in reversed list)
+    // Show button when scrolled up from bottom (not at max scroll extent)
     final showButton = _scrollController.hasClients && 
-                      _scrollController.offset > 200;
+                      _scrollController.offset < _scrollController.position.maxScrollExtent - 200;
     if (showButton != _showScrollToBottom) {
       setState(() {
         _showScrollToBottom = showButton;
@@ -56,15 +56,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // Use post-frame callback to ensure layout is complete
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scrollController.hasClients) {
-          // In reversed ListView, position 0 is the bottom (latest messages)
+          final maxScroll = _scrollController.position.maxScrollExtent;
           if (animate) {
             _scrollController.animateTo(
-              0.0,
+              maxScroll,
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeOut,
             );
           } else {
-            _scrollController.jumpTo(0.0);
+            _scrollController.jumpTo(maxScroll);
           }
         }
       });
@@ -134,9 +134,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         sessionId: sessionId,
         message: userMessage,
       );
-      
-      // Scroll to bottom after message is added
-      _scrollToBottom();
     } catch (e) {
       print('Error saving user message: $e');
     }
@@ -145,9 +142,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ref.read(chatLoadingProvider.notifier).state = true;
 
     try {
-      // Get conversation history for context
-      final sessionAsync = await ref.read(chatSessionStreamProvider(sessionId).future);
-      final conversationHistory = sessionAsync.messages;
+      // Use current session messages for context (already in memory)
+      final sessionAsync = ref.read(chatSessionStreamProvider(sessionId));
+      final conversationHistory = sessionAsync.value?.messages ?? [];
       
       // Call Cloud Function to get AI response (it will save both messages to Firestore)
       final cloudFunctions = ref.read(cloudFunctionsServiceProvider);
@@ -168,8 +165,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
         );
       }
-      
-      _scrollToBottom();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -305,27 +300,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   );
                 }
 
+                // Use single consistent ListView for all conversations
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16.0),
-                  reverse: true,
                   itemCount: messages.length + (isLoading ? 1 : 0),
                   itemBuilder: (context, index) {
-                    // Reverse the order since ListView is reversed
-                    final reversedIndex = messages.length - 1 - index + (isLoading ? 1 : 0);
-                    
-                    if (reversedIndex == messages.length && isLoading) {
-                      // Show typing indicator as first item (bottom in reversed list)
+                    if (index == messages.length && isLoading) {
                       return _TypingIndicatorBubble();
                     }
-                    
-                    final actualIndex = reversedIndex - (isLoading ? 1 : 0);
-                    if (actualIndex >= 0 && actualIndex < messages.length) {
-                      final message = messages[actualIndex];
-                      return _MessageBubble(message: message);
-                    }
-                    
-                    return const SizedBox.shrink();
+                    final message = messages[index];
+                    return _MessageBubble(message: message);
                   },
                 );
               },
