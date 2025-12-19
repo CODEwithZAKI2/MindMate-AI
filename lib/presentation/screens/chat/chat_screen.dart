@@ -24,6 +24,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _showScrollToBottom = false;
+  int _lastMessageCount = 0;
+  bool _initialScrollDone = false;
 
   @override
   void initState() {
@@ -134,6 +136,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         sessionId: sessionId,
         message: userMessage,
       );
+      // Auto-scroll after user message is saved
+      _scrollToBottom();
     } catch (e) {
       print('Error saving user message: $e');
     }
@@ -176,6 +180,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     } finally {
       ref.read(chatLoadingProvider.notifier).state = false;
+      // Auto-scroll after AI response
+      _scrollToBottom();
     }
   }
 
@@ -268,6 +274,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
               data: (session) {
                 final messages = session.messages;
+                
+                // Auto-scroll to bottom on initial load or when new messages arrive
+                if (messages.isNotEmpty) {
+                  if (!_initialScrollDone) {
+                    _initialScrollDone = true;
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _scrollToBottom(animate: false);
+                    });
+                  } else if (messages.length > _lastMessageCount) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _scrollToBottom();
+                    });
+                  }
+                  _lastMessageCount = messages.length;
+                }
                 
                 if (messages.isEmpty) {
                   return Center(
