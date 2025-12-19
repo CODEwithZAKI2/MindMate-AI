@@ -54,6 +54,9 @@
 - [x] Terms of Service screen (full content)
 - [x] Sign out functionality
 - [x] Navigation to legal documents
+- [x] Export personal data as JSON with file sharing
+- [x] Account deletion with password confirmation
+- [x] Complete data cleanup (Firestore + Firebase Auth)
 
 ### Infrastructure
 - [x] Flutter project structure (core/, data/, domain/, presentation/)
@@ -78,11 +81,6 @@
 ## ❌ NOT YET IMPLEMENTED
 
 ### High Priority (MVP Required)
-
-#### Data Export & Account Deletion
-- [ ] Export personal data as JSON
-- [ ] Account deletion with complete data cleanup
-- [ ] Data retention settings
 
 #### Crisis Resources Localization
 - [ ] Detect user timezone/region

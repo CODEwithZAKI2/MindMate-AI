@@ -142,4 +142,16 @@ class UserRepository {
       'accountStatus': 'active',
     });
   }
+
+  // Get user by ID (alias for getUserProfile for consistency)
+  Future<User> getUserById(String userId) async {
+    return getUserProfile(userId);
+  }
+
+  // Delete user account and all associated data
+  Future<void> deleteUser(String userId) async {
+    await _firestore.collection('users').doc(userId).delete();
+    // Also delete preferences
+    await _firestore.collection('user_preferences').doc(userId).delete();
+  }
 }

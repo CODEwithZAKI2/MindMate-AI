@@ -1,7 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../../providers/auth_provider.dart';
+import '../../providers/data_export_provider.dart';
 import '../../../core/constants/routes.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -105,7 +110,7 @@ class SettingsScreen extends ConsumerWidget {
                     title: 'Export My Data',
                     subtitle: 'Download your data (GDPR)',
                     onTap: () {
-                      _showExportDataDialog(context);
+                      _showExportDataDialog(context, ref);
                     },
                   ),
                   const Divider(height: 1),
@@ -332,66 +337,195 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   void _showDeleteAccountDialog(BuildContext context, WidgetRef ref) {
+    final TextEditingController passwordController = TextEditingController();
+    bool isDeleting = false;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Account'),
-        content: const Text(
-          'Are you sure you want to delete your account? This action cannot be undone. '
-          'All your data will be permanently deleted within 30 days.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Account deletion feature coming soon'),
-                  duration: Duration(seconds: 3),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Delete Account'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'This action cannot be undone. All your data will be permanently deleted immediately.',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'To confirm, please enter your password:',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
                 ),
-              );
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Delete'),
+                enabled: !isDeleting,
+              ),
+            ],
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: isDeleting ? null : () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: isDeleting
+                  ? null
+                  : () async {
+                      if (passwordController.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please enter your password')),
+                        );
+                        return;
+                      }
+
+                      setState(() => isDeleting = true);
+
+                      try {
+                        final userId = ref.read(currentUserIdProvider);
+                        if (userId == null) throw Exception('User not found');
+
+                        // Re-authenticate user
+                        final user = firebase_auth.FirebaseAuth.instance.currentUser;
+                        if (user?.email == null) throw Exception('Email not found');
+
+                        final credential = firebase_auth.EmailAuthProvider.credential(
+                          email: user!.email!,
+                          password: passwordController.text,
+                        );
+                        await user.reauthenticateWithCredential(credential);
+
+                        // Delete all user data from Firestore
+                        final dataExportService = ref.read(dataExportServiceProvider);
+                        await dataExportService.deleteAllUserData(userId);
+
+                        // Delete Firebase Auth account
+                        await user.delete();
+
+                        if (context.mounted) {
+                          Navigator.of(context).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Account deleted successfully'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                          context.go(Routes.signIn);
+                        }
+                      } catch (e) {
+                        setState(() => isDeleting = false);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: ${e.toString()}'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              child: isDeleting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Delete Permanently'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _showExportDataDialog(BuildContext context) {
+  void _showExportDataDialog(BuildContext context, WidgetRef ref) {
+    bool isExporting = false;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Export Data'),
-        content: const Text(
-          'Your data will be prepared and sent to your email address as a JSON file. '
-          'This includes your profile, mood logs, and chat history.',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Export Data'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Your data will be exported as a JSON file that you can save or share.',
+              ),
+              if (isExporting) ...[
+                const SizedBox(height: 16),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 8),
+                const Text('Preparing your data...'),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isExporting ? null : () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: isExporting
+                  ? null
+                  : () async {
+                      setState(() => isExporting = true);
+
+                      try {
+                        final userId = ref.read(currentUserIdProvider);
+                        if (userId == null) throw Exception('User not found');
+
+                        // Export data
+                        final dataExportService = ref.read(dataExportServiceProvider);
+                        final jsonData = await dataExportService.exportUserData(userId);
+
+                        // Save to temporary file
+                        final directory = await getTemporaryDirectory();
+                        final timestamp = DateTime.now().millisecondsSinceEpoch;
+                        final file = File('${directory.path}/mindmate_data_$timestamp.json');
+                        await file.writeAsString(jsonData);
+
+                        // Share the file
+                        await Share.shareXFiles(
+                          [XFile(file.path)],
+                          subject: 'MindMate AI - My Data Export',
+                          text: 'Here is my exported data from MindMate AI',
+                        );
+
+                        if (context.mounted) {
+                          Navigator.of(context).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Data exported successfully!'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setState(() => isExporting = false);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: ${e.toString()}'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              child: const Text('Export'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Data export feature coming soon'),
-                  duration: Duration(seconds: 3),
-                ),
-              );
-            },
-            child: const Text('Export'),
-          ),
-        ],
       ),
     );
   }

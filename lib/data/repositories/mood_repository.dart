@@ -39,6 +39,19 @@ class MoodRepository {
             .toList());
   }
 
+  // Get all mood logs for a user (for data export)
+  Future<List<MoodLog>> getAllMoodLogs({required String userId}) async {
+    final snapshot = await _firestore
+        .collection('mood_logs')
+        .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .get();
+
+    return snapshot.docs
+        .map((doc) => MoodLogModel.fromFirestore(doc).toEntity())
+        .toList();
+  }
+
   // Get user mood logs (paginated)
   Future<List<MoodLog>> getUserMoodLogs({
     required String userId,
