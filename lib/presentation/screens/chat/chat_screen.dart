@@ -41,9 +41,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _onScroll() {
-    // Show button when scrolled up more than 200 pixels
+    // Show button when scrolled up (away from position 0 which is bottom in reversed list)
     final showButton = _scrollController.hasClients && 
-                      _scrollController.offset < _scrollController.position.maxScrollExtent - 200;
+                      _scrollController.offset > 200;
     if (showButton != _showScrollToBottom) {
       setState(() {
         _showScrollToBottom = showButton;
@@ -56,15 +56,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // Use post-frame callback to ensure layout is complete
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scrollController.hasClients) {
-          final maxScroll = _scrollController.position.maxScrollExtent;
+          // In reversed ListView, position 0 is the bottom (latest messages)
           if (animate) {
             _scrollController.animateTo(
-              maxScroll,
+              0.0,
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeOut,
             );
           } else {
-            _scrollController.jumpTo(maxScroll);
+            _scrollController.jumpTo(0.0);
           }
         }
       });
