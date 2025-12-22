@@ -38,6 +38,9 @@
 - [x] Safety flagging on messages
 - [x] Crisis event logging for review
 - [x] AI blocked during crisis (shows resources instead)
+- [x] Region-specific crisis hotlines (US, CA, GB, AU, NZ, IE, IN, ZA)
+- [x] Automatic timezone detection for localized resources
+- [x] International crisis resource directory with 8 countries
 
 ### Mood Tracking
 - [x] Mood check-in (1-5 scale with tags and notes)
@@ -81,11 +84,6 @@
 ## ❌ NOT YET IMPLEMENTED
 
 ### High Priority (MVP Required)
-
-#### Crisis Resources Localization
-- [ ] Detect user timezone/region
-- [ ] Region-specific crisis hotlines
-- [ ] International crisis resource directory
 
 #### Chat UX Improvements
 - [ ] Message retry on send failure

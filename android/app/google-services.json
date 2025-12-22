@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "137877213010-udrmvaj5r56heagj3lbb6v3fho706922.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mindmate.mindmate_ai",
+            "certificate_hash": "395215f49c135af6c5b8de1f1862c730a7069cdf"
+          }
+        },
+        {
           "client_id": "137877213010-tk5iurbnm3voj1bitbgejg6j7kbjmpr1.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -29,6 +37,13 @@
             {
               "client_id": "137877213010-tk5iurbnm3voj1bitbgejg6j7kbjmpr1.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "137877213010-2ua3csp3ggfgnm73eep1lp210v5g99h2.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.mindmate.mindmateAi"
+              }
             }
           ]
         }
