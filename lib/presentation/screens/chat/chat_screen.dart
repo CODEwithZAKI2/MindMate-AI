@@ -44,7 +44,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _onScroll() {
     // In reversed ListView, position 0 is bottom (latest messages)
     // Show button when scrolled UP (offset > 200 means we're away from bottom)
-    final showButton = _scrollController.hasClients && _scrollController.offset > 200;
+    final showButton =
+        _scrollController.hasClients && _scrollController.offset > 200;
     if (showButton != _showScrollToBottom) {
       setState(() {
         _showScrollToBottom = showButton;
@@ -54,7 +55,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _scrollToBottom({bool animate = true}) {
     if (!mounted || !_scrollController.hasClients) return;
-    
+
     // In reversed ListView, position 0 is the bottom (latest messages)
     if (animate) {
       _scrollController.animateTo(
@@ -84,9 +85,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           messageCount: 0,
           messages: const [],
         );
-        
+
         try {
-          final sessionId = await ref.read(chatNotifierProvider.notifier).createChatSession(newSession);
+          final sessionId = await ref
+              .read(chatNotifierProvider.notifier)
+              .createChatSession(newSession);
           ref.read(currentSessionIdProvider.notifier).state = sessionId;
         } catch (e) {
           if (mounted) {
@@ -105,7 +108,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     final userId = ref.read(currentUserIdProvider);
     final sessionId = ref.read(currentSessionIdProvider);
-    
+
     if (userId == null || sessionId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Session not ready. Please try again.')),
@@ -123,17 +126,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     // Clear input immediately
     _messageController.clear();
-    
+
     // Save user message immediately to Firestore for instant display
     try {
-      await ref.read(chatRepositoryProvider).addMessageToSession(
-        sessionId: sessionId,
-        message: userMessage,
-      );
+      await ref
+          .read(chatRepositoryProvider)
+          .addMessageToSession(sessionId: sessionId, message: userMessage);
     } catch (e) {
       print('Error saving user message: $e');
     }
-    
+
     // Set loading state for AI response
     ref.read(chatLoadingProvider.notifier).state = true;
 
@@ -141,7 +143,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // Use current session messages for context (already in memory)
       final sessionAsync = ref.read(chatSessionStreamProvider(sessionId));
       final conversationHistory = sessionAsync.value?.messages ?? [];
-      
+
       // Call Cloud Function to get AI response (it will save both messages to Firestore)
       final cloudFunctions = ref.read(cloudFunctionsServiceProvider);
       final aiResult = await cloudFunctions.sendChatMessage(
@@ -150,12 +152,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         message: text,
         conversationHistory: conversationHistory,
       );
-      
+
       // Show crisis warning if detected
       if (aiResult.isCrisis && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('⚠️ Crisis resources have been shared. Your safety is important.'),
+            content: const Text(
+              '⚠️ Crisis resources have been shared. Your safety is important.',
+            ),
             backgroundColor: Theme.of(context).colorScheme.error,
             duration: const Duration(seconds: 5),
           ),
@@ -181,36 +185,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('End Conversation'),
-        content: const Text('Are you sure you want to end this conversation?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('End Conversation'),
+            content: const Text(
+              'Are you sure you want to end this conversation?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('End'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('End'),
-          ),
-        ],
-      ),
     );
 
     if (confirm == true) {
       try {
-        await ref.read(chatNotifierProvider.notifier).endChatSession(
-              sessionId: sessionId,
-            );
+        await ref
+            .read(chatNotifierProvider.notifier)
+            .endChatSession(sessionId: sessionId);
         ref.read(currentSessionIdProvider.notifier).state = null;
         if (mounted) {
           context.pop();
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error ending session: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error ending session: $e')));
         }
       }
     }
@@ -225,9 +232,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (sessionId == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Chat')),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -251,155 +256,167 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               // Messages list
               Expanded(
                 child: sessionAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  loading:
+                      () => const Center(child: CircularProgressIndicator()),
+                  error:
+                      (error, stack) => Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 64,
+                              color: Colors.red,
+                            ),
+                            const SizedBox(height: 16),
+                            Text('Error: $error'),
+                          ],
+                        ),
+                      ),
+                  data: (session) {
+                    final messages = session.messages;
+
+                    if (messages.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.chat_bubble_outline,
+                              size: 80,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Start a conversation',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 48.0),
+                              child: Text(
+                                'Share what\'s on your mind. I\'m here to listen and support you.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // Reversed ListView - automatically shows bottom (latest messages) first
+                    // Index 0 = latest message (at bottom), so we reverse the display order
+                    final totalItems = messages.length + (isLoading ? 1 : 0);
+
+                    // For few messages, use Column at top; for many, use reversed ListView at bottom
+                    if (totalItems <= 5) {
+                      // Few messages - show at top of screen
+                      return SingleChildScrollView(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            ...messages.map(
+                              (message) => _MessageBubble(message: message),
+                            ),
+                            if (isLoading) _TypingIndicatorBubble(),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // Many messages - use reversed ListView (latest at bottom)
+                    return ListView.builder(
+                      controller: _scrollController,
+                      reverse: true,
+                      padding: const EdgeInsets.all(16.0),
+                      itemCount: totalItems,
+                      itemBuilder: (context, index) {
+                        // In reversed list: index 0 is at bottom
+                        // Typing indicator should be at bottom (index 0)
+                        if (isLoading && index == 0) {
+                          return _TypingIndicatorBubble();
+                        }
+                        // Adjust index for messages when loading indicator is shown
+                        final messageIndex = isLoading ? index - 1 : index;
+                        // Reverse the message order so newest appears at index 0
+                        final actualIndex = messages.length - 1 - messageIndex;
+                        if (actualIndex < 0 || actualIndex >= messages.length)
+                          return const SizedBox();
+                        final message = messages[actualIndex];
+                        return _MessageBubble(message: message);
+                      },
+                    );
+                  },
+                ),
+              ),
+
+              // Message input
+              Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 12.0,
+                ),
+                child: Row(
                   children: [
-                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                    const SizedBox(height: 16),
-                    Text('Error: $error'),
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        decoration: InputDecoration(
+                          hintText: 'Type your message...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                        ),
+                        maxLines: null,
+                        textCapitalization: TextCapitalization.sentences,
+                        onSubmitted: (_) => _sendMessage(),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    FloatingActionButton(
+                      onPressed: isLoading ? null : _sendMessage,
+                      mini: true,
+                      child: const Icon(Icons.send_rounded),
+                    ),
                   ],
                 ),
               ),
-              data: (session) {
-                final messages = session.messages;
-                
-                if (messages.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.chat_bubble_outline,
-                          size: 80,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Start a conversation',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: Colors.grey,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 48.0),
-                          child: Text(
-                            'Share what\'s on your mind. I\'m here to listen and support you.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                // Reversed ListView - automatically shows bottom (latest messages) first
-                // Index 0 = latest message (at bottom), so we reverse the display order
-                final totalItems = messages.length + (isLoading ? 1 : 0);
-                
-                // For few messages, use Column at top; for many, use reversed ListView at bottom
-                if (totalItems <= 5) {
-                  // Few messages - show at top of screen
-                  return SingleChildScrollView(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        ...messages.map((message) => _MessageBubble(message: message)),
-                        if (isLoading) _TypingIndicatorBubble(),
-                      ],
-                    ),
-                  );
-                }
-                
-                // Many messages - use reversed ListView (latest at bottom)
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.all(16.0),
-                  itemCount: totalItems,
-                  itemBuilder: (context, index) {
-                    // In reversed list: index 0 is at bottom
-                    // Typing indicator should be at bottom (index 0)
-                    if (isLoading && index == 0) {
-                      return _TypingIndicatorBubble();
-                    }
-                    // Adjust index for messages when loading indicator is shown
-                    final messageIndex = isLoading ? index - 1 : index;
-                    // Reverse the message order so newest appears at index 0
-                    final actualIndex = messages.length - 1 - messageIndex;
-                    if (actualIndex < 0 || actualIndex >= messages.length) return const SizedBox();
-                    final message = messages[actualIndex];
-                    return _MessageBubble(message: message);
-                  },
-                );
-              },
-            ),
+            ],
           ),
 
-          // Message input
-          Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, -2),
+          // Scroll to bottom button
+          if (_showScrollToBottom)
+            Positioned(
+              right: 16,
+              bottom: 80,
+              child: FloatingActionButton.small(
+                onPressed: _scrollToBottom,
+                backgroundColor: theme.colorScheme.primary,
+                child: Icon(
+                  Icons.arrow_downward_rounded,
+                  color: theme.colorScheme.onPrimary,
                 ),
-              ],
+              ),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: InputDecoration(
-                      hintText: 'Type your message...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                    ),
-                    maxLines: null,
-                    textCapitalization: TextCapitalization.sentences,
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FloatingActionButton(
-                  onPressed: isLoading ? null : _sendMessage,
-                  mini: true,
-                  child: const Icon(Icons.send_rounded),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      
-      // Scroll to bottom button
-      if (_showScrollToBottom)
-        Positioned(
-          right: 16,
-          bottom: 80,
-          child: FloatingActionButton.small(
-            onPressed: _scrollToBottom,
-            backgroundColor: theme.colorScheme.primary,
-            child: Icon(
-              Icons.arrow_downward_rounded,
-              color: theme.colorScheme.onPrimary,
-            ),
-          ),
-        ),
         ],
       ),
     );
@@ -411,152 +428,250 @@ class _MessageBubble extends StatelessWidget {
 
   const _MessageBubble({required this.message});
 
+  /// Check if the AI response contains crisis resources
+  bool _containsCrisisResources(String content) {
+    final lowerContent = content.toLowerCase();
+    final crisisIndicators = [
+      'crisis',
+      'suicide prevention',
+      'hotline',
+      'emergency:',
+      '988',
+      '110',
+      '119',
+      '911',
+      'lifeline',
+      'immediate support',
+      'reach out to',
+      'crisis text line',
+      'mental health crisis',
+    ];
+    return crisisIndicators.any(
+      (indicator) => lowerContent.contains(indicator),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isUser = message.role == 'user';
     final timeFormat = DateFormat('h:mm a');
+    final isCrisisResponse =
+        !isUser && _containsCrisisResources(message.content);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
-      child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment:
+            isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (!isUser) ...[
-            Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [
-                    theme.colorScheme.secondary,
-                    theme.colorScheme.secondary.withOpacity(0.7),
+          Row(
+            mainAxisAlignment:
+                isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isUser) ...[
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        theme.colorScheme.secondary,
+                        theme.colorScheme.secondary.withOpacity(0.7),
+                      ],
+                    ),
+                  ),
+                  child: CircleAvatar(
+                    backgroundColor: Colors.transparent,
+                    child: Icon(
+                      Icons.psychology_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Flexible(
+                child: Column(
+                  crossAxisAlignment:
+                      isUser
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                  children: [
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width * 0.75,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient:
+                              isUser
+                                  ? LinearGradient(
+                                    colors: [
+                                      theme.colorScheme.primary,
+                                      theme.colorScheme.primary.withOpacity(
+                                        0.8,
+                                      ),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  )
+                                  : null,
+                          color: isUser ? null : Colors.grey[100],
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(20),
+                            topRight: const Radius.circular(20),
+                            bottomLeft: Radius.circular(isUser ? 20 : 4),
+                            bottomRight: Radius.circular(isUser ? 4 : 20),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (isUser)
+                              SelectableText(
+                                message.content,
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  color: Colors.white,
+                                  height: 1.4,
+                                ),
+                              )
+                            else
+                              MarkdownBody(
+                                data: message.content,
+                                selectable: true,
+                                styleSheet: MarkdownStyleSheet(
+                                  p: theme.textTheme.bodyLarge?.copyWith(
+                                    color: Colors.grey[900],
+                                    height: 1.4,
+                                  ),
+                                  listBullet: theme.textTheme.bodyLarge
+                                      ?.copyWith(color: Colors.grey[900]),
+                                ),
+                              ),
+                            if (message.safetyFlagged) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.warning_amber_rounded,
+                                      size: 16,
+                                      color: Colors.red,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        'Crisis keywords detected',
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: Colors.red,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        timeFormat.format(message.timestamp),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant.withOpacity(
+                            0.6,
+                          ),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
-              child: CircleAvatar(
-                backgroundColor: Colors.transparent,
-                child: Icon(
-                  Icons.psychology_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Column(
-              crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-              children: [
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width * 0.75,
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      gradient: isUser
-                          ? LinearGradient(
-                              colors: [
-                                theme.colorScheme.primary,
-                                theme.colorScheme.primary.withOpacity(0.8),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            )
-                          : null,
-                      color: isUser ? null : Colors.grey[100],
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(20),
-                        topRight: const Radius.circular(20),
-                        bottomLeft: Radius.circular(isUser ? 20 : 4),
-                        bottomRight: Radius.circular(isUser ? 4 : 20),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (isUser)
-                          SelectableText(
-                            message.content,
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              color: Colors.white,
-                              height: 1.4,
-                            ),
-                          )
-                        else
-                          MarkdownBody(
-                            data: message.content,
-                            selectable: true,
-                            styleSheet: MarkdownStyleSheet(
-                              p: theme.textTheme.bodyLarge?.copyWith(
-                                color: Colors.grey[900],
-                                height: 1.4,
-                              ),
-                              listBullet: theme.textTheme.bodyLarge?.copyWith(
-                                color: Colors.grey[900],
-                              ),
-                            ),
-                          ),
-                        if (message.safetyFlagged) ...[
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.warning_amber_rounded, size: 16, color: Colors.red),
-                                const SizedBox(width: 4),
-                                Flexible(
-                                  child: Text(
-                                    'Crisis keywords detected',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: Colors.red,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    timeFormat.format(message.timestamp),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
-                      fontSize: 11,
-                    ),
+              if (isUser) ...[
+                const SizedBox(width: 8),
+                CircleAvatar(
+                  backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
+                  child: Icon(
+                    Icons.person_rounded,
+                    color: theme.colorScheme.primary,
                   ),
                 ),
               ],
-            ),
+            ],
           ),
-          if (isUser) ...[
-            const SizedBox(width: 8),
-            CircleAvatar(
-              backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
-              child: Icon(
-                Icons.person_rounded,
-                color: theme.colorScheme.primary,
+          // Crisis warning banner for AI responses with crisis resources
+          if (isCrisisResponse) ...[
+            const SizedBox(height: 8),
+            Container(
+              margin: const EdgeInsets.only(left: 48),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.shade200, width: 1),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade100,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.health_and_safety_rounded,
+                      color: Colors.red.shade700,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Help is Available',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: Colors.red.shade800,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'You are not alone. Please reach out to the resources above if you need support.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.red.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -574,9 +689,10 @@ class _TypingIndicator extends StatefulWidget {
   State<_TypingIndicator> createState() => _TypingIndicatorState();
 }
 
-class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerProviderStateMixin {
+class _TypingIndicatorState extends State<_TypingIndicator>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  
+
   @override
   void initState() {
     super.initState();
@@ -604,7 +720,7 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
             final value = (_controller.value - delay).clamp(0.0, 1.0);
             final opacity = (math.sin(value * math.pi) * 0.6 + 0.4);
             final scale = (math.sin(value * math.pi) * 0.3 + 0.7);
-            
+
             return Transform.scale(
               scale: scale,
               child: Opacity(
@@ -634,7 +750,7 @@ class _TypingIndicatorBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: Row(

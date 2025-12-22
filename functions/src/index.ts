@@ -16,15 +16,23 @@ const geminiApiKey = defineSecret("GEMINI_API_KEY");
 // Crisis keywords for pre-AI filtering
 const CRISIS_KEYWORDS = [
   "suicide",
+  "suicidal",
   "kill myself",
   "end my life",
   "want to die",
+  "wanna die",
   "self harm",
+  "self-harm",
+  "cutting myself",
   "hurt myself",
+  "harming myself",
   "overdose",
   "jump off",
   "no reason to live",
   "better off dead",
+  "don't want to live",
+  "ending it all",
+  "take my own life",
 ];
 
 // Safety system prompt for Gemini
@@ -336,7 +344,7 @@ export const chat = onCall(
         success: true,
         message: "Message processed successfully",
         aiResponse,
-        isCrisis: false,
+        isCrisis,
       };
     } catch (error: unknown) {
       console.error("Chat function error:", error);
