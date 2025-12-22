@@ -26,21 +26,41 @@ class AIServiceException implements Exception {
 class CloudFunctionsService {
   final FirebaseFunctions _functions;
 
-  /// Timeout duration for cloud function calls
-  static const Duration _timeout = Duration(seconds: 30);
+  /// Timeout duration for cloud function calls (reduced for faster error detection)
+  static const Duration _timeout = Duration(seconds: 15);
 
   CloudFunctionsService() : _functions = FirebaseFunctions.instance;
 
-  /// Check if device has network connectivity
+  /// Check if device has network connectivity by trying multiple methods
   Future<bool> _hasNetworkConnection() async {
     try {
-      final result = await InternetAddress.lookup(
-        'google.com',
-      ).timeout(const Duration(seconds: 5));
-      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-    } on SocketException catch (_) {
+      // Try to connect to multiple hosts to ensure we're really online
+      final hosts = ['8.8.8.8', '1.1.1.1', 'google.com'];
+
+      for (final host in hosts) {
+        try {
+          final result = await InternetAddress.lookup(
+            host,
+          ).timeout(const Duration(seconds: 3));
+          if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
+            print(
+              '[CloudFunctionsService] Network check passed with host: $host',
+            );
+            return true;
+          }
+        } catch (_) {
+          // Try next host
+          continue;
+        }
+      }
+
+      // All hosts failed
+      print(
+        '[CloudFunctionsService] Network check failed - no hosts reachable',
+      );
       return false;
-    } on TimeoutException catch (_) {
+    } catch (e) {
+      print('[CloudFunctionsService] Network check error: $e');
       return false;
     }
   }
@@ -54,9 +74,14 @@ class CloudFunctionsService {
     required String message,
     required List<ChatMessage> conversationHistory,
   }) async {
+    print('[CloudFunctionsService] Starting sendChatMessage...');
+
     // Check network connectivity first
     final hasNetwork = await _hasNetworkConnection();
+    print('[CloudFunctionsService] Network check result: $hasNetwork');
+
     if (!hasNetwork) {
+      print('[CloudFunctionsService] No network - throwing NetworkException');
       throw NetworkException(
         'No internet connection. Please check your network and try again.',
       );
@@ -92,6 +117,8 @@ class CloudFunctionsService {
               .map((msg) => {'role': msg.role, 'content': msg.content})
               .toList();
 
+      print('[CloudFunctionsService] Calling Cloud Function...');
+
       // Call Cloud Function with timeout
       final callable = _functions.httpsCallable(
         'chat',
@@ -109,10 +136,12 @@ class CloudFunctionsService {
           .timeout(
             _timeout,
             onTimeout: () {
+              print('[CloudFunctionsService] Request timed out');
               throw TimeoutException('Request timed out. Please try again.');
             },
           );
 
+      print('[CloudFunctionsService] Got response from Cloud Function');
       final data = result.data as Map<String, dynamic>;
 
       if (data['success'] == true) {
@@ -127,22 +156,44 @@ class CloudFunctionsService {
       print(
         '[CloudFunctionsService] Firebase Functions error: ${e.code} - ${e.message}',
       );
-      if (e.code == 'unavailable' || e.code == 'deadline-exceeded') {
+      if (e.code == 'unavailable' ||
+          e.code == 'deadline-exceeded' ||
+          e.code == 'internal' ||
+          e.code == 'unknown') {
         throw NetworkException(
           'Unable to connect to server. Please check your internet connection.',
         );
       }
       throw AIServiceException(e.message ?? 'Service error occurred');
-    } on SocketException catch (_) {
+    } on SocketException catch (e) {
+      print('[CloudFunctionsService] SocketException: $e');
       throw NetworkException(
         'No internet connection. Please check your network and try again.',
       );
-    } on TimeoutException catch (_) {
+    } on TimeoutException catch (e) {
+      print('[CloudFunctionsService] TimeoutException: $e');
       throw NetworkException(
         'Connection timed out. Please check your network and try again.',
       );
+    } on HttpException catch (e) {
+      print('[CloudFunctionsService] HttpException: $e');
+      throw NetworkException(
+        'Network error. Please check your connection and try again.',
+      );
     } catch (e) {
-      print('[CloudFunctionsService] Unexpected error: $e');
+      print('[CloudFunctionsService] Unexpected error: $e (${e.runtimeType})');
+      // Check if it's a network-related error by examining the error message
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('network') ||
+          errorStr.contains('socket') ||
+          errorStr.contains('connection') ||
+          errorStr.contains('host') ||
+          errorStr.contains('timeout') ||
+          errorStr.contains('unreachable')) {
+        throw NetworkException(
+          'Network error. Please check your connection and try again.',
+        );
+      }
       throw AIServiceException('Something went wrong. Please try again.');
     }
   }

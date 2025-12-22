@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -103,6 +106,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  /// Check if device has network connectivity using connectivity_plus
+  Future<bool> _checkNetworkConnection() async {
+    try {
+      // Use connectivity_plus for reliable network detection
+      final connectivityResult = await Connectivity().checkConnectivity();
+      print('[ChatScreen] Connectivity result: $connectivityResult');
+
+      // Check if we have any network connection
+      if (connectivityResult.contains(ConnectivityResult.none)) {
+        print('[ChatScreen] No network connection detected');
+        return false;
+      }
+
+      // We have some form of connectivity (wifi, mobile, ethernet, etc.)
+      // Now verify we can actually reach the internet
+      try {
+        final result = await InternetAddress.lookup(
+          'google.com',
+        ).timeout(const Duration(seconds: 3));
+        if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
+          print('[ChatScreen] Network check passed - internet reachable');
+          return true;
+        }
+      } catch (e) {
+        print('[ChatScreen] DNS lookup failed: $e');
+        // Even if DNS fails, we might still have connectivity
+        // Return true if connectivity_plus says we have a connection
+        return !connectivityResult.contains(ConnectivityResult.none);
+      }
+
+      return true;
+    } catch (e) {
+      print('[ChatScreen] Network check error: $e');
+      return false;
+    }
+  }
+
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
@@ -158,6 +198,50 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     required String sessionId,
     bool isRetry = false,
   }) async {
+    // Check network FIRST before doing anything
+    final hasNetwork = await _checkNetworkConnection();
+    if (!hasNetwork) {
+      // Add to failed messages immediately
+      ref
+          .read(failedMessagesProvider.notifier)
+          .addFailedMessage(
+            FailedMessage(
+              id: messageId,
+              content: text,
+              timestamp: DateTime.now(),
+              sessionId: sessionId,
+              userId: userId,
+            ),
+          );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.wifi_off_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'No internet connection. Message saved for retry.',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _retryMessage(messageId),
+            ),
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
+      return;
+    }
+
     // Create user message
     final userMessage = ChatMessage(
       id: messageId,
