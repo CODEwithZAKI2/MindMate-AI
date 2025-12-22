@@ -10,34 +10,42 @@ final chatRepositoryProvider = Provider<ChatRepository>((ref) {
 /// Stream provider for user chat sessions
 final chatSessionsStreamProvider =
     StreamProvider.family<List<ChatSession>, String>((ref, userId) {
-  final chatRepository = ref.watch(chatRepositoryProvider);
-  return chatRepository.getChatSessionsStream(userId);
-});
+      final chatRepository = ref.watch(chatRepositoryProvider);
+      return chatRepository.getChatSessionsStream(userId);
+    });
 
 /// Future provider for active chat session
-final activeChatSessionProvider =
-    FutureProvider.family<ChatSession?, String>((ref, userId) {
+final activeChatSessionProvider = FutureProvider.family<ChatSession?, String>((
+  ref,
+  userId,
+) {
   final chatRepository = ref.watch(chatRepositoryProvider);
   return chatRepository.getActiveChatSession(userId);
 });
 
 /// Future provider for chat session by ID
-final chatSessionProvider =
-    FutureProvider.family<ChatSession, String>((ref, sessionId) {
+final chatSessionProvider = FutureProvider.family<ChatSession, String>((
+  ref,
+  sessionId,
+) {
   final chatRepository = ref.watch(chatRepositoryProvider);
   return chatRepository.getChatSession(sessionId);
 });
 
 /// Stream provider for chat session by ID (real-time updates)
-final chatSessionStreamProvider =
-    StreamProvider.family<ChatSession, String>((ref, sessionId) {
+final chatSessionStreamProvider = StreamProvider.family<ChatSession, String>((
+  ref,
+  sessionId,
+) {
   final chatRepository = ref.watch(chatRepositoryProvider);
   return chatRepository.getChatSessionStream(sessionId);
 });
 
 /// Future provider for chat statistics
-final chatStatisticsProvider = FutureProvider.family<Map<String, dynamic>,
-    ({String userId, DateTime startDate, DateTime endDate})>((ref, params) {
+final chatStatisticsProvider = FutureProvider.family<
+  Map<String, dynamic>,
+  ({String userId, DateTime startDate, DateTime endDate})
+>((ref, params) {
   final chatRepository = ref.watch(chatRepositoryProvider);
   return chatRepository.getChatStatistics(
     userId: params.userId,
@@ -49,9 +57,9 @@ final chatStatisticsProvider = FutureProvider.family<Map<String, dynamic>,
 /// Future provider for flagged sessions
 final flaggedSessionsProvider =
     FutureProvider.family<List<ChatSession>, String>((ref, userId) {
-  final chatRepository = ref.watch(chatRepositoryProvider);
-  return chatRepository.getFlaggedSessions(userId);
-});
+      final chatRepository = ref.watch(chatRepositoryProvider);
+      return chatRepository.getFlaggedSessions(userId);
+    });
 
 /// State notifier for chat actions
 class ChatNotifier extends StateNotifier<AsyncValue<void>> {
@@ -178,9 +186,9 @@ class ChatNotifier extends StateNotifier<AsyncValue<void>> {
 /// Provider for ChatNotifier
 final chatNotifierProvider =
     StateNotifierProvider<ChatNotifier, AsyncValue<void>>((ref) {
-  final chatRepository = ref.watch(chatRepositoryProvider);
-  return ChatNotifier(chatRepository);
-});
+      final chatRepository = ref.watch(chatRepositoryProvider);
+      return ChatNotifier(chatRepository);
+    });
 
 /// Provider for current active session ID
 final currentSessionIdProvider = StateProvider<String?>((ref) => null);
@@ -190,3 +198,51 @@ final messageInputProvider = StateProvider<String>((ref) => '');
 
 /// Provider for chat loading state
 final chatLoadingProvider = StateProvider<bool>((ref) => false);
+
+/// Model for a failed message that can be retried
+class FailedMessage {
+  final String id;
+  final String content;
+  final DateTime timestamp;
+  final String sessionId;
+  final String userId;
+
+  FailedMessage({
+    required this.id,
+    required this.content,
+    required this.timestamp,
+    required this.sessionId,
+    required this.userId,
+  });
+}
+
+/// Provider for tracking failed messages
+final failedMessagesProvider =
+    StateNotifierProvider<FailedMessagesNotifier, List<FailedMessage>>((ref) {
+      return FailedMessagesNotifier();
+    });
+
+/// Notifier for failed messages
+class FailedMessagesNotifier extends StateNotifier<List<FailedMessage>> {
+  FailedMessagesNotifier() : super([]);
+
+  void addFailedMessage(FailedMessage message) {
+    state = [...state, message];
+  }
+
+  void removeFailedMessage(String id) {
+    state = state.where((m) => m.id != id).toList();
+  }
+
+  void clearFailedMessages() {
+    state = [];
+  }
+
+  FailedMessage? getFailedMessage(String id) {
+    try {
+      return state.firstWhere((m) => m.id == id);
+    } catch (e) {
+      return null;
+    }
+  }
+}

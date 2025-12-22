@@ -1,6 +1,6 @@
 # MindMate AI - Development Tasks
 
-> **Last Updated:** December 19, 2025  
+> **Last Updated:** December 22, 2025  
 > **MVP Target:** February 11, 2026
 
 ---
@@ -41,6 +41,8 @@
 - [x] Region-specific crisis hotlines (US, CA, GB, AU, NZ, IE, IN, ZA)
 - [x] Automatic timezone detection for localized resources
 - [x] International crisis resource directory with 8 countries
+- [x] AI-driven crisis resources based on timezone (dynamic localization)
+- [x] Crisis warning banner ("Help is Available") on crisis AI responses
 
 ### Mood Tracking
 - [x] Mood check-in (1-5 scale with tags and notes)
@@ -86,9 +88,9 @@
 ### High Priority (MVP Required)
 
 #### Chat UX Improvements
-- [ ] Message retry on send failure
+- [x] Message retry on send failure
 - [ ] Offline message queue
-- [ ] Network error handling with retry
+- [x] Network error handling with retry
 
 ### Medium Priority (Post-MVP)
 

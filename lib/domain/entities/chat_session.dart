@@ -1,5 +1,8 @@
 import 'package:equatable/equatable.dart';
 
+/// Status of message sending
+enum MessageSendStatus { sending, sent, failed }
+
 /// Domain entity representing a chat message
 class ChatMessage extends Equatable {
   final String id;
@@ -7,6 +10,7 @@ class ChatMessage extends Equatable {
   final String content;
   final DateTime timestamp;
   final bool safetyFlagged;
+  final MessageSendStatus sendStatus;
 
   const ChatMessage({
     required this.id,
@@ -14,11 +18,14 @@ class ChatMessage extends Equatable {
     required this.content,
     required this.timestamp,
     this.safetyFlagged = false,
+    this.sendStatus = MessageSendStatus.sent,
   });
 
   bool get isUser => role == 'user';
   bool get isAssistant => role == 'assistant';
   bool get isSystem => role == 'system';
+  bool get isSending => sendStatus == MessageSendStatus.sending;
+  bool get isFailed => sendStatus == MessageSendStatus.failed;
 
   ChatMessage copyWith({
     String? id,
@@ -26,6 +33,7 @@ class ChatMessage extends Equatable {
     String? content,
     DateTime? timestamp,
     bool? safetyFlagged,
+    MessageSendStatus? sendStatus,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -33,17 +41,19 @@ class ChatMessage extends Equatable {
       content: content ?? this.content,
       timestamp: timestamp ?? this.timestamp,
       safetyFlagged: safetyFlagged ?? this.safetyFlagged,
+      sendStatus: sendStatus ?? this.sendStatus,
     );
   }
 
   @override
   List<Object?> get props => [
-        id,
-        role,
-        content,
-        timestamp,
-        safetyFlagged,
-      ];
+    id,
+    role,
+    content,
+    timestamp,
+    safetyFlagged,
+    sendStatus,
+  ];
 }
 
 /// Domain entity representing a chat session
@@ -107,15 +117,15 @@ class ChatSession extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        userId,
-        startedAt,
-        endedAt,
-        lastMessageAt,
-        messageCount,
-        messages,
-        summary,
-        moodAtStart,
-        moodAtEnd,
-      ];
+    id,
+    userId,
+    startedAt,
+    endedAt,
+    lastMessageAt,
+    messageCount,
+    messages,
+    summary,
+    moodAtStart,
+    moodAtEnd,
+  ];
 }
