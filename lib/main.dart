@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz;
-import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/timezone.dart' as tzlib;
 import 'app.dart';
 import 'core/utils/logger.dart';
 import 'firebase_options.dart';
@@ -22,9 +23,16 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // Initialize timezone database
+  // Initialize timezone database and set local timezone
   tz.initializeTimeZones();
-  AppLogger.info('✅ Timezone database initialized');
+  try {
+    final String localTimezone = await FlutterTimezone.getLocalTimezone();
+    AppLogger.info('📍 Device timezone detected: $localTimezone');
+    tzlib.setLocalLocation(tzlib.getLocation(localTimezone));
+    AppLogger.info('✅ Timezone set to: ${tzlib.local.name}');
+  } catch (e) {
+    AppLogger.warning('⚠️ Could not detect timezone, using UTC: $e');
+  }
 
   // Initialize Firebase
   await Firebase.initializeApp(

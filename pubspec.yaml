@@ -63,6 +63,7 @@ dependencies:
   # Date & Time
   intl: ^0.20.1
   timezone: ^0.9.4
+  flutter_timezone: ^3.0.1
 
   # Loading & Progress
   loading_animation_widget: ^1.3.0

@@ -28,7 +28,7 @@ const CRISIS_KEYWORDS = [
 ];
 
 // Safety system prompt for Gemini
-const SYSTEM_PROMPT = `You are MindMate, a compassionate AI companion focused on mental wellness support. I was created by a team of engineers and researchers at Taabo Tech. My purpose is to provide supportive listening and gentle guidance.
+const SYSTEM_PROMPT = `You are MindMate, a compassionate AI companion focused on mental wellness support. I was created by a team of engineers and researchers at Taabo Tech. My purpose is to provide supportive listening and gentle guidance. Taabo Tech founded by two Engineers from Somalia named Eng.Omar Mohamud Mohamed Fidow and Eng. Abdulhakim Ali Hassan, with mission to improve mental health through technology.
 
 Core Guidelines:
 1. Be empathetic, warm, and non-judgmental
@@ -39,7 +39,11 @@ Core Guidelines:
 6. You are allowed to speak the language of the user as needed
 
 Crisis Protocol:
-- If user expresses suicidal thoughts or self-harm: Respond with immediate concern and provide crisis resources
+- If user expresses suicidal thoughts or self-harm: Respond with immediate concern and provide region-specific crisis resources
+- Use the user's timezone information to provide accurate local crisis hotlines and emergency services
+- If timezone is unavailable or unrecognized, default to United States resources (988 Suicide & Crisis Lifeline, Text "HELLO" to 741741, Emergency: 911)
+- Provide the country name, primary suicide prevention hotline, text line (if available), emergency number, and 2-3 additional local resources
+- Format crisis resources clearly with proper contact numbers
 - Never dismiss or minimize crisis expressions
 - Always flag crisis situations for human review
 
@@ -63,18 +67,7 @@ interface ChatRequest {
   sessionId: string;
   message: string;
   conversationHistory?: Array<{role: string; content: string}>;
-  userTimezone?: string; // User's timezone for region detection
-}
-
-interface CrisisResource {
-  countryCode: string;
-  countryName: string;
-  primaryHotline: string;
-  primaryHotlineName: string;
-  textLine?: string;
-  textLineInstructions?: string;
-  emergencyNumber?: string;
-  additionalResources?: string[];
+  userTimezone?: string; // User's timezone name (e.g., "Asia/Shanghai")
 }
 
 interface ChatResponse {
@@ -82,7 +75,6 @@ interface ChatResponse {
   message?: string;
   aiResponse?: string;
   isCrisis?: boolean;
-  crisisResources?: CrisisResource; // Localized crisis resources
   error?: string;
 }
 
@@ -95,217 +87,6 @@ function detectCrisis(message: string): boolean {
 }
 
 /**
- * Get crisis resource by timezone
- */
-function getCrisisResourceByTimezone(timezone?: string): CrisisResource {
-  // Default to US resources
-  if (!timezone) {
-    return {
-      countryCode: "US",
-      countryName: "United States",
-      primaryHotline: "988",
-      primaryHotlineName: "Suicide & Crisis Lifeline",
-      textLine: "741741",
-      textLineInstructions: "Text \"HELLO\" to 741741",
-      emergencyNumber: "911",
-      additionalResources: [
-        "Veterans Crisis Line: 988 (Press 1)",
-        "SAMHSA National Helpline: 1-800-662-4357",
-      ],
-    };
-  }
-
-  // Map timezone to country-specific resources
-  if (timezone.startsWith("America/")) {
-    if (
-      timezone.includes("Toronto") ||
-      timezone.includes("Vancouver") ||
-      timezone.includes("Edmonton") ||
-      timezone.includes("Montreal")
-    ) {
-      // Canada
-      return {
-        countryCode: "CA",
-        countryName: "Canada",
-        primaryHotline: "988",
-        primaryHotlineName: "Suicide Crisis Helpline",
-        textLine: "45645",
-        textLineInstructions: "Text \"TALK\" to 45645",
-        emergencyNumber: "911",
-        additionalResources: [
-          "Kids Help Phone: 1-800-668-6868",
-          "Hope for Wellness (Indigenous): 1-855-242-3310",
-          "Talk Suicide Canada: 1-833-456-4566",
-        ],
-      };
-    }
-    // US (default for America timezones)
-    return {
-      countryCode: "US",
-      countryName: "United States",
-      primaryHotline: "988",
-      primaryHotlineName: "Suicide & Crisis Lifeline",
-      textLine: "741741",
-      textLineInstructions: "Text \"HELLO\" to 741741",
-      emergencyNumber: "911",
-      additionalResources: [
-        "Veterans Crisis Line: 988 (Press 1)",
-        "SAMHSA National Helpline: 1-800-662-4357",
-      ],
-    };
-  } else if (timezone.startsWith("Europe/London")) {
-    // United Kingdom
-    return {
-      countryCode: "GB",
-      countryName: "United Kingdom",
-      primaryHotline: "116 123",
-      primaryHotlineName: "Samaritans",
-      textLine: "85258",
-      textLineInstructions: "Text \"SHOUT\" to 85258",
-      emergencyNumber: "999 or 112",
-      additionalResources: [
-        "CALM (Campaign Against Living Miserably): 0800 58 58 58",
-        "Papyrus (Under 35s): 0800 068 4141",
-        "The Mix (Under 25s): 0808 808 4994",
-        "Mind Infoline: 0300 123 3393",
-      ],
-    };
-  } else if (timezone.startsWith("Europe/Dublin")) {
-    // Ireland
-    return {
-      countryCode: "IE",
-      countryName: "Ireland",
-      primaryHotline: "116 123",
-      primaryHotlineName: "Samaritans",
-      textLine: "50808",
-      textLineInstructions: "Text \"HELLO\" to 50808",
-      emergencyNumber: "999 or 112",
-      additionalResources: [
-        "Pieta House: 1800 247 247",
-        "Aware: 1800 80 48 48",
-        "Childline: 1800 66 66 66",
-        "LGBT Ireland: 1890 929 539",
-      ],
-    };
-  } else if (timezone.startsWith("Australia/")) {
-    // Australia
-    return {
-      countryCode: "AU",
-      countryName: "Australia",
-      primaryHotline: "13 11 14",
-      primaryHotlineName: "Lifeline",
-      textLine: "0477 13 11 14",
-      textLineInstructions: "Text Lifeline at 0477 13 11 14",
-      emergencyNumber: "000",
-      additionalResources: [
-        "Beyond Blue: 1300 22 4636",
-        "Kids Helpline: 1800 55 1800",
-        "MensLine Australia: 1300 78 99 78",
-        "QLife (LGBTI): 1800 184 527",
-      ],
-    };
-  } else if (timezone.startsWith("Pacific/Auckland")) {
-    // New Zealand
-    return {
-      countryCode: "NZ",
-      countryName: "New Zealand",
-      primaryHotline: "1737",
-      primaryHotlineName: "Need to Talk?",
-      textLine: "1737",
-      textLineInstructions: "Text or call 1737",
-      emergencyNumber: "111",
-      additionalResources: [
-        "Lifeline: 0800 543 354",
-        "Suicide Crisis Helpline: 0508 828 865",
-        "Youthline: 0800 376 633",
-        "Depression Helpline: 0800 111 757",
-      ],
-    };
-  } else if (
-    timezone.startsWith("Asia/Kolkata") ||
-    timezone.startsWith("Asia/Calcutta")
-  ) {
-    // India
-    return {
-      countryCode: "IN",
-      countryName: "India",
-      primaryHotline: "9152987821",
-      primaryHotlineName: "AASRA",
-      emergencyNumber: "112",
-      additionalResources: [
-        "iCall (TISS): 9152987821",
-        "Snehi: 91-22-27546669",
-        "Vandrevala Foundation: 1860-2662-345",
-        "Fortis Stress Helpline: 8376804102",
-      ],
-    };
-  } else if (timezone.startsWith("Africa/Johannesburg")) {
-    // South Africa
-    return {
-      countryCode: "ZA",
-      countryName: "South Africa",
-      primaryHotline: "0800 567 567",
-      primaryHotlineName: "SADAG",
-      textLine: "31393",
-      textLineInstructions: "Text \"Hi\" to 31393",
-      emergencyNumber: "10111 or 112",
-      additionalResources: [
-        "Suicide Crisis Line: 0800 567 567",
-        "LifeLine: 0861 322 322",
-        "Childline: 0800 055 555",
-        "TEARS Foundation: 010 590 5920",
-      ],
-    };
-  }
-
-  // Default fallback to US
-  return {
-    countryCode: "US",
-    countryName: "United States",
-    primaryHotline: "988",
-    primaryHotlineName: "Suicide & Crisis Lifeline",
-    textLine: "741741",
-    textLineInstructions: "Text \"HELLO\" to 741741",
-    emergencyNumber: "911",
-    additionalResources: [
-      "Veterans Crisis Line: 988 (Press 1)",
-      "SAMHSA National Helpline: 1-800-662-4357",
-    ],
-  };
-}
-
-/**
- * Generate crisis response with localized resources
- */
-function getCrisisResponse(resources: CrisisResource): string {
-  let response =
-    "I'm really concerned about what you've shared. Your safety is the most important thing right now. " +
-    `Please reach out to a crisis helpline immediately:\n\n**${resources.countryName} Resources:**\n` +
-    `• **${resources.primaryHotlineName}**: ${resources.primaryHotline}\n`;
-
-  if (resources.textLine) {
-    response += `• **Text Line**: ${resources.textLineInstructions}\n`;
-  }
-
-  if (resources.emergencyNumber) {
-    response += `• **Emergency**: ${resources.emergencyNumber}\n`;
-  }
-
-  if (resources.additionalResources && resources.additionalResources.length > 0) {
-    response += "\n**Additional Resources:**\n";
-    resources.additionalResources.forEach((resource) => {
-      response += `• ${resource}\n`;
-    });
-  }
-
-  response +=
-    "\nI'm here to listen, but trained counselors can provide the immediate support you need. " +
-    "Will you reach out to one of these resources?";
-
-  return response;
-}
-
-/**
  * Generate AI response using Gemini
  */
 async function generateAIResponse(
@@ -314,7 +95,8 @@ async function generateAIResponse(
   apiKey: string,
   userName?: string,
   sessionSummaries?: string[],
-  moodContext?: string
+  moodContext?: string,
+  userTimezone?: string
 ): Promise<string> {
   try {
     console.log("[generateAIResponse] Starting with message:", userMessage.substring(0, 50));
@@ -342,6 +124,14 @@ async function generateAIResponse(
     // Add mood context if available
     if (moodContext) {
       contextualPrompt += `\n\nRecent Mood Context (last 7 days):\n${moodContext}\nUse this to tailor guidance to the user's recent emotional state. Be gentle if mood is declining.`;
+    }
+
+    // Add timezone for crisis resource localization
+    if (userTimezone) {
+      console.log("[generateAIResponse] Adding timezone context:", userTimezone);
+      contextualPrompt += `\n\nUser Location Context:\n- Timezone: ${userTimezone}\n- When providing crisis resources, use accurate local hotlines and emergency numbers for this timezone/region.`;
+    } else {
+      console.log("[generateAIResponse] No timezone provided, will use US default");
     }
     
     const model = genAI.getGenerativeModel({
@@ -423,6 +213,7 @@ export const chat = onCall(
 
     const {userId, sessionId, message, conversationHistory = [], userTimezone} = request.data as ChatRequest;
     console.log("[chat] Received request for user:", userId, "session:", sessionId);
+    console.log("[chat] User timezone received:", userTimezone || "NOT PROVIDED");
 
     // Validate inputs
     if (!userId || !sessionId || !message) {
@@ -441,62 +232,7 @@ export const chat = onCall(
     }
 
     try {
-      // Step 1: Crisis detection
-      const isCrisis = detectCrisis(message);
-
-      if (isCrisis) {
-        // Get localized crisis resources
-        const crisisResources = getCrisisResourceByTimezone(userTimezone);
-        const crisisResponse = getCrisisResponse(crisisResources);
-
-        // Save both user message and crisis response to Firestore
-        const sessionRef = admin.firestore()
-          .collection("chat_sessions")
-          .doc(sessionId);
-
-        const now = admin.firestore.Timestamp.now();
-
-        await sessionRef.update({
-          messages: admin.firestore.FieldValue.arrayUnion({
-            role: "user",
-            content: message,
-            timestamp: now,
-            safetyFlagged: true,
-          }),
-          messageCount: admin.firestore.FieldValue.increment(1),
-          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        await sessionRef.update({
-          messages: admin.firestore.FieldValue.arrayUnion({
-            role: "assistant",
-            content: crisisResponse,
-            timestamp: now,
-            safetyFlagged: true,
-          }),
-          messageCount: admin.firestore.FieldValue.increment(1),
-          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        // Log crisis event (but don't block response)
-        admin.firestore().collection("crisis_logs").add({
-          userId,
-          sessionId,
-          message,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
-          flaggedFor: "crisis_keywords",
-        }).catch((err) => console.error("Crisis log error:", err));
-
-        return {
-          success: true,
-          message: "Crisis detected",
-          aiResponse: crisisResponse,
-          isCrisis: true,
-          crisisResources: crisisResources,
-        };
-      }
-
-      // Step 2: Fetch user profile and session summaries for context
+      // Fetch user profile and session summaries for context
       console.log("[chat] Fetching user profile, summaries, and mood context...");
       let userName: string | undefined;
       let sessionSummaries: string[] = [];
@@ -536,19 +272,35 @@ export const chat = onCall(
         // Continue without mood context if fetch fails
       }
 
-      // Step 3: Generate AI response with enhanced context
-      console.log("[chat] Calling generateAIResponse...");
+      // Generate AI response with enhanced context including timezone
+      console.log("[chat] Calling generateAIResponse with timezone:", userTimezone || "NOT PROVIDED");
       const aiResponse = await generateAIResponse(
         message,
         conversationHistory,
         geminiApiKey.value(),
         userName,
         sessionSummaries,
-        moodContext
+        moodContext,
+        userTimezone
       );
       console.log("[chat] Got AI response:", aiResponse.substring(0, 50));
 
-      // Step 3: Save messages to chat_sessions document as array
+      // Check if AI detected crisis (simple keyword check in response)
+      const isCrisis = detectCrisis(message);
+      
+      // Log crisis events for monitoring
+      if (isCrisis) {
+        admin.firestore().collection("crisis_logs").add({
+          userId,
+          sessionId,
+          message,
+          aiResponse: aiResponse.substring(0, 200),
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timezone: userTimezone || "unknown",
+        }).catch((err) => console.error("Crisis log error:", err));
+      }
+
+      // Save messages to chat_sessions document as array
       const sessionRef = admin.firestore()
         .collection("chat_sessions")
         .doc(sessionId);
