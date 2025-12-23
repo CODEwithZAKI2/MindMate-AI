@@ -25,24 +25,121 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen>
+    with WidgetsBindingObserver {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _showScrollToBottom = false;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  bool _isOnline = true;
+  bool _isProcessingQueue = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeChat();
     _scrollController.addListener(_onScroll);
+    _setupConnectivityListener();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _messageController.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _connectivitySubscription?.cancel();
     super.dispose();
+  }
+
+  /// Setup connectivity listener for auto-retry when back online
+  void _setupConnectivityListener() {
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((
+      results,
+    ) {
+      final wasOffline = !_isOnline;
+      final isNowOnline = !results.contains(ConnectivityResult.none);
+
+      print(
+        '[ChatScreen] Connectivity changed: $results, isNowOnline: $isNowOnline',
+      );
+
+      if (mounted) {
+        setState(() {
+          _isOnline = isNowOnline;
+        });
+      }
+
+      // If we just came back online, process pending messages
+      if (wasOffline && isNowOnline) {
+        print('[ChatScreen] Back online - processing pending messages');
+        _processPendingMessages();
+      }
+    });
+
+    // Check initial connectivity
+    Connectivity().checkConnectivity().then((results) {
+      final isOnline = !results.contains(ConnectivityResult.none);
+      print('[ChatScreen] Initial connectivity: $results, isOnline: $isOnline');
+      if (mounted) {
+        setState(() {
+          _isOnline = isOnline;
+        });
+      }
+    });
+  }
+
+  /// Process all pending messages in queue
+  Future<void> _processPendingMessages() async {
+    if (_isProcessingQueue) return;
+    _isProcessingQueue = true;
+
+    final pendingMessages = ref.read(pendingMessagesProvider);
+    final sessionId = ref.read(currentSessionIdProvider);
+
+    for (final pending in pendingMessages) {
+      if (pending.sessionId == sessionId && !pending.isSending) {
+        await _sendPendingMessage(pending);
+        // Small delay between messages
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    }
+
+    _isProcessingQueue = false;
+  }
+
+  /// Send a pending message
+  Future<void> _sendPendingMessage(PendingMessage pending) async {
+    ref.read(pendingMessagesProvider.notifier).markAsSending(pending.id);
+
+    try {
+      final sessionAsync = ref.read(
+        chatSessionStreamProvider(pending.sessionId),
+      );
+      final conversationHistory = sessionAsync.value?.messages ?? [];
+
+      final cloudFunctions = ref.read(cloudFunctionsServiceProvider);
+      final aiResult = await cloudFunctions.sendChatMessage(
+        userId: pending.userId,
+        sessionId: pending.sessionId,
+        message: pending.content,
+        conversationHistory: conversationHistory,
+      );
+
+      // Success - remove from pending
+      ref
+          .read(pendingMessagesProvider.notifier)
+          .removePendingMessage(pending.id);
+
+      // Show crisis warning if detected
+      if (aiResult.isCrisis && mounted) {
+        // Crisis is handled by the banner in the message bubble
+      }
+    } catch (e) {
+      print('[ChatScreen] Failed to send pending message: $e');
+      ref.read(pendingMessagesProvider.notifier).markAsNotSending(pending.id);
+    }
   }
 
   void _onScroll() {
@@ -106,43 +203,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  /// Check if device has network connectivity using connectivity_plus
-  Future<bool> _checkNetworkConnection() async {
-    try {
-      // Use connectivity_plus for reliable network detection
-      final connectivityResult = await Connectivity().checkConnectivity();
-      print('[ChatScreen] Connectivity result: $connectivityResult');
-
-      // Check if we have any network connection
-      if (connectivityResult.contains(ConnectivityResult.none)) {
-        print('[ChatScreen] No network connection detected');
-        return false;
-      }
-
-      // We have some form of connectivity (wifi, mobile, ethernet, etc.)
-      // Now verify we can actually reach the internet
-      try {
-        final result = await InternetAddress.lookup(
-          'google.com',
-        ).timeout(const Duration(seconds: 3));
-        if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
-          print('[ChatScreen] Network check passed - internet reachable');
-          return true;
-        }
-      } catch (e) {
-        print('[ChatScreen] DNS lookup failed: $e');
-        // Even if DNS fails, we might still have connectivity
-        // Return true if connectivity_plus says we have a connection
-        return !connectivityResult.contains(ConnectivityResult.none);
-      }
-
-      return true;
-    } catch (e) {
-      print('[ChatScreen] Network check error: $e');
-      return false;
-    }
-  }
-
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
@@ -171,26 +231,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  /// Retry a failed message
-  Future<void> _retryMessage(String messageId) async {
-    final failedMessage = ref
-        .read(failedMessagesProvider.notifier)
-        .getFailedMessage(messageId);
-    if (failedMessage == null) return;
-
-    // Remove from failed messages
-    ref.read(failedMessagesProvider.notifier).removeFailedMessage(messageId);
-
-    await _sendMessageInternal(
-      messageId: messageId,
-      text: failedMessage.content,
-      userId: failedMessage.userId,
-      sessionId: failedMessage.sessionId,
-      isRetry: true,
-    );
-  }
-
-  /// Internal method to send a message (used by both send and retry)
+  /// Internal method to send a message (WhatsApp-style: always show message, queue if offline)
   Future<void> _sendMessageInternal({
     required String messageId,
     required String text,
@@ -198,50 +239,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     required String sessionId,
     bool isRetry = false,
   }) async {
-    // Check network FIRST before doing anything
-    final hasNetwork = await _checkNetworkConnection();
-    if (!hasNetwork) {
-      // Add to failed messages immediately
-      ref
-          .read(failedMessagesProvider.notifier)
-          .addFailedMessage(
-            FailedMessage(
-              id: messageId,
-              content: text,
-              timestamp: DateTime.now(),
-              sessionId: sessionId,
-              userId: userId,
-            ),
-          );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.wifi_off_rounded, color: Colors.white, size: 20),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'No internet connection. Message saved for retry.',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            action: SnackBarAction(
-              label: 'Retry',
-              textColor: Colors.white,
-              onPressed: () => _retryMessage(messageId),
-            ),
-            duration: const Duration(seconds: 6),
-          ),
-        );
-      }
-      return;
-    }
-
     // Create user message
     final userMessage = ChatMessage(
       id: messageId,
@@ -251,7 +248,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       sendStatus: MessageSendStatus.sending,
     );
 
-    // Save user message immediately to Firestore for instant display (only if not retry)
+    // Save user message to Firestore for instant display
     if (!isRetry) {
       try {
         await ref
@@ -262,41 +259,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     }
 
-    // Set loading state for AI response
-    ref.read(chatLoadingProvider.notifier).state = true;
-
-    try {
-      // Use current session messages for context (already in memory)
-      final sessionAsync = ref.read(chatSessionStreamProvider(sessionId));
-      final conversationHistory = sessionAsync.value?.messages ?? [];
-
-      // Call Cloud Function to get AI response (it will save both messages to Firestore)
-      final cloudFunctions = ref.read(cloudFunctionsServiceProvider);
-      final aiResult = await cloudFunctions.sendChatMessage(
-        userId: userId,
-        sessionId: sessionId,
-        message: text,
-        conversationHistory: conversationHistory,
-      );
-
-      // Show crisis warning if detected
-      if (aiResult.isCrisis && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              '⚠️ Crisis resources have been shared. Your safety is important.',
-            ),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
-    } catch (e) {
-      // Add to failed messages for retry
+    // If offline, add to pending queue (clock icon) and return
+    if (!_isOnline) {
       ref
-          .read(failedMessagesProvider.notifier)
-          .addFailedMessage(
-            FailedMessage(
+          .read(pendingMessagesProvider.notifier)
+          .addPendingMessage(
+            PendingMessage(
               id: messageId,
               content: text,
               timestamp: DateTime.now(),
@@ -304,47 +272,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               userId: userId,
             ),
           );
+      return;
+    }
 
-      if (mounted) {
-        // Determine error message based on exception type
-        String errorMessage;
-        IconData errorIcon;
+    // Online - send directly (no pending queue, shows checkmark immediately)
+    ref.read(chatLoadingProvider.notifier).state = true;
 
-        if (e is NetworkException) {
-          errorMessage = e.message;
-          errorIcon = Icons.wifi_off_rounded;
-        } else if (e is AIServiceException) {
-          errorMessage = e.message;
-          errorIcon = Icons.cloud_off_rounded;
-        } else {
-          errorMessage = 'Failed to send message. Please try again.';
-          errorIcon = Icons.error_outline_rounded;
-        }
+    try {
+      // Use current session messages for context
+      final sessionAsync = ref.read(chatSessionStreamProvider(sessionId));
+      final conversationHistory = sessionAsync.value?.messages ?? [];
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(errorIcon, color: Colors.white, size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    errorMessage,
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
+      // Call Cloud Function to get AI response
+      final cloudFunctions = ref.read(cloudFunctionsServiceProvider);
+      await cloudFunctions.sendChatMessage(
+        userId: userId,
+        sessionId: sessionId,
+        message: text,
+        conversationHistory: conversationHistory,
+      );
+
+      // Success - message sent, checkmark shows automatically
+    } catch (e) {
+      // Add to pending queue for retry (shows clock icon)
+      ref
+          .read(pendingMessagesProvider.notifier)
+          .addPendingMessage(
+            PendingMessage(
+              id: messageId,
+              content: text,
+              timestamp: DateTime.now(),
+              sessionId: sessionId,
+              userId: userId,
             ),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            action: SnackBarAction(
-              label: 'Retry',
-              textColor: Colors.white,
-              onPressed: () => _retryMessage(messageId),
-            ),
-            duration: const Duration(seconds: 6),
-          ),
-        );
-      }
+          );
     } finally {
       ref.read(chatLoadingProvider.notifier).state = false;
     }
@@ -399,6 +360,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final theme = Theme.of(context);
     final sessionId = ref.watch(currentSessionIdProvider);
     final isLoading = ref.watch(chatLoadingProvider);
+    final pendingMessages = ref.watch(pendingMessagesProvider);
 
     if (sessionId == null) {
       return Scaffold(
@@ -424,6 +386,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           Column(
             children: [
+              // WhatsApp-style connectivity banner - only show when offline
+              if (!_isOnline)
+                _ConnectivityBanner(
+                  isOnline: _isOnline,
+                  pendingCount: pendingMessages.length,
+                ),
               // Messages list
               Expanded(
                 child: sessionAsync.when(
@@ -478,13 +446,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       );
                     }
 
-                    // Reversed ListView - automatically shows bottom (latest messages) first
-                    // Index 0 = latest message (at bottom), so we reverse the display order
                     final totalItems = messages.length + (isLoading ? 1 : 0);
 
-                    // For few messages, use Column at top; for many, use reversed ListView at bottom
+                    // For few messages, use Column at top
                     if (totalItems <= 5) {
-                      // Few messages - show at top of screen
                       return SingleChildScrollView(
                         controller: _scrollController,
                         padding: const EdgeInsets.all(16.0),
@@ -492,10 +457,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             ...messages.map(
-                              (message) => _MessageBubble(
-                                message: message,
-                                onRetry: () => _retryMessage(message.id),
-                              ),
+                              (message) => _MessageBubble(message: message),
                             ),
                             if (isLoading) _TypingIndicatorBubble(),
                           ],
@@ -510,22 +472,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       padding: const EdgeInsets.all(16.0),
                       itemCount: totalItems,
                       itemBuilder: (context, index) {
-                        // In reversed list: index 0 is at bottom
-                        // Typing indicator should be at bottom (index 0)
+                        // In reversed list: index 0 is at visual bottom
                         if (isLoading && index == 0) {
                           return _TypingIndicatorBubble();
                         }
-                        // Adjust index for messages when loading indicator is shown
                         final messageIndex = isLoading ? index - 1 : index;
-                        // Reverse the message order so newest appears at index 0
                         final actualIndex = messages.length - 1 - messageIndex;
-                        if (actualIndex < 0 || actualIndex >= messages.length)
+                        if (actualIndex < 0 || actualIndex >= messages.length) {
                           return const SizedBox();
-                        final message = messages[actualIndex];
-                        return _MessageBubble(
-                          message: message,
-                          onRetry: () => _retryMessage(message.id),
-                        );
+                        }
+                        return _MessageBubble(message: messages[actualIndex]);
                       },
                     );
                   },
@@ -600,11 +556,50 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
+/// WhatsApp-style connectivity banner
+class _ConnectivityBanner extends StatelessWidget {
+  final bool isOnline;
+  final int pendingCount;
+
+  const _ConnectivityBanner({
+    required this.isOnline,
+    required this.pendingCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Only show when offline
+    if (isOnline) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.grey.shade300,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.wifi_off_rounded, size: 16, color: Colors.grey.shade700),
+          const SizedBox(width: 8),
+          Text(
+            pendingCount > 0
+                ? 'No internet · $pendingCount message${pendingCount > 1 ? 's' : ''} pending'
+                : 'No internet connection',
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MessageBubble extends ConsumerWidget {
   final ChatMessage message;
-  final VoidCallback? onRetry;
 
-  const _MessageBubble({required this.message, this.onRetry});
+  const _MessageBubble({required this.message});
 
   /// Check if the AI response contains crisis resources
   bool _containsCrisisResources(String content) {
@@ -637,9 +632,14 @@ class _MessageBubble extends ConsumerWidget {
     final isCrisisResponse =
         !isUser && _containsCrisisResources(message.content);
 
-    // Check if this message failed to send
-    final failedMessages = ref.watch(failedMessagesProvider);
-    final isFailed = isUser && failedMessages.any((m) => m.id == message.id);
+    // Check if this message is pending (WhatsApp-style)
+    final pendingMessages = ref.watch(pendingMessagesProvider);
+    final isPending = isUser && pendingMessages.any((m) => m.id == message.id);
+    final pendingMsg =
+        isPending
+            ? pendingMessages.firstWhere((m) => m.id == message.id)
+            : null;
+    final isSending = pendingMsg?.isSending ?? false;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
@@ -787,33 +787,42 @@ class _MessageBubble extends ConsumerWidget {
                           Text(
                             timeFormat.format(message.timestamp),
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color:
-                                  isFailed
-                                      ? Colors.red
-                                      : theme.colorScheme.onSurfaceVariant
-                                          .withOpacity(0.6),
+                              color: theme.colorScheme.onSurfaceVariant
+                                  .withOpacity(0.6),
                               fontSize: 11,
                             ),
                           ),
-                          if (isFailed) ...[
-                            const SizedBox(width: 8),
-                            Icon(
-                              Icons.error_outline_rounded,
-                              size: 14,
-                              color: Colors.red,
-                            ),
+                          // WhatsApp-style status icons for user messages
+                          if (isUser) ...[
                             const SizedBox(width: 4),
-                            GestureDetector(
-                              onTap: onRetry,
-                              child: Text(
-                                'Failed · Tap to retry',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: Colors.red,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 11,
+                            if (isPending && isSending)
+                              // Sending animation
+                              SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.5,
+                                  valueColor: AlwaysStoppedAnimation(
+                                    theme.colorScheme.onSurfaceVariant
+                                        .withOpacity(0.6),
+                                  ),
                                 ),
+                              )
+                            else if (isPending)
+                              // Clock icon for pending
+                              Icon(
+                                Icons.access_time_rounded,
+                                size: 14,
+                                color: theme.colorScheme.onSurfaceVariant
+                                    .withOpacity(0.6),
+                              )
+                            else
+                              // Single check for sent
+                              Icon(
+                                Icons.check_rounded,
+                                size: 14,
+                                color: theme.colorScheme.primary,
                               ),
-                            ),
                           ],
                         ],
                       ),

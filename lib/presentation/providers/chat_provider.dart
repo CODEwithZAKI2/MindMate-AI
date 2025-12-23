@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/chat_session.dart';
 import '../../data/repositories/chat_repository.dart';
@@ -5,6 +7,21 @@ import '../../data/repositories/chat_repository.dart';
 /// Provider for ChatRepository
 final chatRepositoryProvider = Provider<ChatRepository>((ref) {
   return ChatRepository();
+});
+
+/// Provider for network connectivity status
+final connectivityProvider = StreamProvider<List<ConnectivityResult>>((ref) {
+  return Connectivity().onConnectivityChanged;
+});
+
+/// Provider for checking if currently online
+final isOnlineProvider = Provider<bool>((ref) {
+  final connectivity = ref.watch(connectivityProvider);
+  return connectivity.when(
+    data: (results) => !results.contains(ConnectivityResult.none),
+    loading: () => true, // Assume online while loading
+    error: (_, __) => true, // Assume online on error
+  );
 });
 
 /// Stream provider for user chat sessions
@@ -199,7 +216,105 @@ final messageInputProvider = StateProvider<String>((ref) => '');
 /// Provider for chat loading state
 final chatLoadingProvider = StateProvider<bool>((ref) => false);
 
-/// Model for a failed message that can be retried
+/// Model for a pending message in the queue
+class PendingMessage {
+  final String id;
+  final String content;
+  final DateTime timestamp;
+  final String sessionId;
+  final String userId;
+  final int retryCount;
+  final bool isSending;
+
+  PendingMessage({
+    required this.id,
+    required this.content,
+    required this.timestamp,
+    required this.sessionId,
+    required this.userId,
+    this.retryCount = 0,
+    this.isSending = false,
+  });
+
+  PendingMessage copyWith({
+    String? id,
+    String? content,
+    DateTime? timestamp,
+    String? sessionId,
+    String? userId,
+    int? retryCount,
+    bool? isSending,
+  }) {
+    return PendingMessage(
+      id: id ?? this.id,
+      content: content ?? this.content,
+      timestamp: timestamp ?? this.timestamp,
+      sessionId: sessionId ?? this.sessionId,
+      userId: userId ?? this.userId,
+      retryCount: retryCount ?? this.retryCount,
+      isSending: isSending ?? this.isSending,
+    );
+  }
+}
+
+/// Provider for tracking pending messages (offline queue)
+final pendingMessagesProvider =
+    StateNotifierProvider<PendingMessagesNotifier, List<PendingMessage>>((ref) {
+      return PendingMessagesNotifier();
+    });
+
+/// Notifier for pending messages queue
+class PendingMessagesNotifier extends StateNotifier<List<PendingMessage>> {
+  PendingMessagesNotifier() : super([]);
+
+  void addPendingMessage(PendingMessage message) {
+    // Don't add duplicate messages
+    if (state.any((m) => m.id == message.id)) return;
+    state = [...state, message];
+  }
+
+  void removePendingMessage(String id) {
+    state = state.where((m) => m.id != id).toList();
+  }
+
+  void markAsSending(String id) {
+    state =
+        state.map((m) {
+          if (m.id == id) {
+            return m.copyWith(isSending: true);
+          }
+          return m;
+        }).toList();
+  }
+
+  void markAsNotSending(String id) {
+    state =
+        state.map((m) {
+          if (m.id == id) {
+            return m.copyWith(isSending: false, retryCount: m.retryCount + 1);
+          }
+          return m;
+        }).toList();
+  }
+
+  void clearPendingMessages() {
+    state = [];
+  }
+
+  PendingMessage? getPendingMessage(String id) {
+    try {
+      return state.firstWhere((m) => m.id == id);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  List<PendingMessage> getPendingForSession(String sessionId) {
+    return state.where((m) => m.sessionId == sessionId).toList();
+  }
+}
+
+/// Model for a failed message that can be retried (legacy - for compatibility)
 class FailedMessage {
   final String id;
   final String content;
@@ -216,13 +331,13 @@ class FailedMessage {
   });
 }
 
-/// Provider for tracking failed messages
+/// Provider for tracking failed messages (legacy - for compatibility)
 final failedMessagesProvider =
     StateNotifierProvider<FailedMessagesNotifier, List<FailedMessage>>((ref) {
       return FailedMessagesNotifier();
     });
 
-/// Notifier for failed messages
+/// Notifier for failed messages (legacy - for compatibility)
 class FailedMessagesNotifier extends StateNotifier<List<FailedMessage>> {
   FailedMessagesNotifier() : super([]);
 
