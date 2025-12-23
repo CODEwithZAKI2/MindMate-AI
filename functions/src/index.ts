@@ -313,7 +313,8 @@ export const chat = onCall(
         .collection("chat_sessions")
         .doc(sessionId);
 
-      const now = admin.firestore.Timestamp.now();
+      // Use JavaScript Date for consistent UTC timestamp
+      const now = admin.firestore.Timestamp.fromDate(new Date());
 
       // Only save AI response (user message already saved by Flutter for immediate display)
       await sessionRef.update({

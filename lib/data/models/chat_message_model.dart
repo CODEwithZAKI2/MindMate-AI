@@ -28,13 +28,12 @@ class ChatMessageModel {
   }
 
   factory ChatMessageModel.fromMap(Map<String, dynamic> data) {
-    // Convert UTC timestamp from Firestore to local time
-    final utcTimestamp = (data['timestamp'] as Timestamp).toDate();
+    // Firestore Timestamp.toDate() returns DateTime in local timezone
     return ChatMessageModel(
       id: data['id'] as String? ?? '',
       role: data['role'] as String,
       content: data['content'] as String,
-      timestamp: utcTimestamp.toLocal(),
+      timestamp: (data['timestamp'] as Timestamp).toDate(),
       safetyFlagged: data['safetyFlagged'] as bool? ?? false,
     );
   }
@@ -44,6 +43,7 @@ class ChatMessageModel {
       'id': id,
       'role': role,
       'content': content,
+      // Store timestamp directly - Firestore handles timezone conversion
       'timestamp': Timestamp.fromDate(timestamp),
       'safetyFlagged': safetyFlagged,
     };
