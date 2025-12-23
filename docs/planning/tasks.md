@@ -1,6 +1,6 @@
 # MindMate AI - Development Tasks
 
-> **Last Updated:** December 22, 2025  
+> **Last Updated:** December 23, 2025  
 > **MVP Target:** February 11, 2026
 
 ---
@@ -31,6 +31,7 @@
 - [x] Chat session management (create, end, continue)
 - [x] Chat history screen with past sessions
 - [x] "New Chat" and "Continue Conversation" features
+- [x] WhatsApp-style offline queue (pending clock icon, auto-resend, online checkmark) with connectivity banner
 
 ### Crisis Detection & Safety
 - [x] Pre-AI crisis keyword detection (backend)
@@ -81,16 +82,16 @@
 - [x] ChatMessage entity
 - [x] Real-time stream providers for all data
 
+### Chat UX Improvements
+- [x] Message retry on send failure
+- [x] Offline message queue (enqueue when offline, auto-send on reconnect)
+- [x] Network error handling with retry
+
 ---
 
 ## ❌ NOT YET IMPLEMENTED
 
 ### High Priority (MVP Required)
-
-#### Chat UX Improvements
-- [x] Message retry on send failure
-- [ ] Offline message queue
-- [x] Network error handling with retry
 
 ### Medium Priority (Post-MVP)
 
