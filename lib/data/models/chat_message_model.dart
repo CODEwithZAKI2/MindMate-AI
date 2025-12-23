@@ -28,11 +28,13 @@ class ChatMessageModel {
   }
 
   factory ChatMessageModel.fromMap(Map<String, dynamic> data) {
+    // Convert UTC timestamp from Firestore to local time
+    final utcTimestamp = (data['timestamp'] as Timestamp).toDate();
     return ChatMessageModel(
       id: data['id'] as String? ?? '',
       role: data['role'] as String,
       content: data['content'] as String,
-      timestamp: (data['timestamp'] as Timestamp).toDate(),
+      timestamp: utcTimestamp.toLocal(),
       safetyFlagged: data['safetyFlagged'] as bool? ?? false,
     );
   }
@@ -92,9 +94,10 @@ class ChatSessionModel {
       endedAt: session.endedAt,
       lastMessageAt: session.lastMessageAt,
       messageCount: session.messageCount,
-      messages: session.messages
-          .map((msg) => ChatMessageModel.fromEntity(msg))
-          .toList(),
+      messages:
+          session.messages
+              .map((msg) => ChatMessageModel.fromEntity(msg))
+              .toList(),
       summary: session.summary,
       moodAtStart: session.moodAtStart,
       moodAtEnd: session.moodAtEnd,
@@ -106,18 +109,22 @@ class ChatSessionModel {
     return ChatSessionModel(
       id: doc.id,
       userId: data['userId'] as String,
-      startedAt: (data['startedAt'] as Timestamp).toDate(),
-      endedAt: data['endedAt'] != null
-          ? (data['endedAt'] as Timestamp).toDate()
-          : null,
-      lastMessageAt: data['lastMessageAt'] != null
-          ? (data['lastMessageAt'] as Timestamp).toDate()
-          : null,
+      startedAt: (data['startedAt'] as Timestamp).toDate().toLocal(),
+      endedAt:
+          data['endedAt'] != null
+              ? (data['endedAt'] as Timestamp).toDate().toLocal()
+              : null,
+      lastMessageAt:
+          data['lastMessageAt'] != null
+              ? (data['lastMessageAt'] as Timestamp).toDate().toLocal()
+              : null,
       messageCount: data['messageCount'] as int,
-      messages: (data['messages'] as List? ?? [])
-          .map((msg) =>
-              ChatMessageModel.fromMap(msg as Map<String, dynamic>))
-          .toList(),
+      messages:
+          (data['messages'] as List? ?? [])
+              .map(
+                (msg) => ChatMessageModel.fromMap(msg as Map<String, dynamic>),
+              )
+              .toList(),
       summary: data['summary'] as String?,
       moodAtStart: data['moodAtStart'] as int?,
       moodAtEnd: data['moodAtEnd'] as int?,
@@ -129,7 +136,8 @@ class ChatSessionModel {
       'userId': userId,
       'startedAt': Timestamp.fromDate(startedAt),
       'endedAt': endedAt != null ? Timestamp.fromDate(endedAt!) : null,
-      'lastMessageAt': lastMessageAt != null ? Timestamp.fromDate(lastMessageAt!) : null,
+      'lastMessageAt':
+          lastMessageAt != null ? Timestamp.fromDate(lastMessageAt!) : null,
       'messageCount': messageCount,
       'messages': messages.map((msg) => msg.toMap()).toList(),
       'summary': summary,
