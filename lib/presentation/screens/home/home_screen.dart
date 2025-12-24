@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../providers/auth_provider.dart';
 import '../../../core/constants/routes.dart';
 
@@ -35,106 +36,85 @@ class HomeScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Welcome section
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        theme.colorScheme.primaryContainer,
-                        theme.colorScheme.primaryContainer.withOpacity(0.3),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Welcome back,',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        user.displayName,
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                // Enhanced Welcome Section
+                _buildWelcomeSection(context, user.displayName),
                 const SizedBox(height: 32),
-                // Quick actions
-                Text(
-                  'Quick Actions',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+
+                // Daily Wellness - Primary Actions
+                _buildSectionHeader(context, 'Daily Wellness'),
                 const SizedBox(height: 16),
-                // Chat action
-                _buildActionCard(
+                _buildPrimaryActionCard(
                   context: context,
                   icon: Icons.chat_bubble_rounded,
                   title: 'Start Conversation',
-                  description: 'Talk to your AI companion',
-                  color: theme.colorScheme.primary,
+                  description: 'Talk to your AI companion about anything',
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.colorScheme.primary,
+                      theme.colorScheme.primary.withOpacity(0.8),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   onTap: () {
                     context.push(Routes.chat);
                   },
                 ),
                 const SizedBox(height: 16),
-                // Chat history action
-                _buildActionCard(
-                  context: context,
-                  icon: Icons.history_rounded,
-                  title: 'Chat History',
-                  description: 'View past conversations',
-                  color: theme.colorScheme.tertiary,
-                  onTap: () {
-                    context.push(Routes.chatHistory);
-                  },
-                ),
-                const SizedBox(height: 16),
-                // Mood check-in action
-                _buildActionCard(
+                _buildPrimaryActionCard(
                   context: context,
                   icon: Icons.mood_rounded,
-                  title: 'Check-In',
-                  description: 'Log your current mood',
-                  color: theme.colorScheme.secondary,
+                  title: 'Daily Check-In',
+                  description: 'Log your mood and track your journey',
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.colorScheme.secondary,
+                      theme.colorScheme.secondary.withOpacity(0.8),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   onTap: () {
                     context.push(Routes.moodCheckIn);
                   },
                 ),
+                const SizedBox(height: 32),
+
+                // Insights & History - Secondary Actions
+                _buildSectionHeader(context, 'Insights & History'),
                 const SizedBox(height: 16),
-                // Mood history / insights action
-                _buildActionCard(
-                  context: context,
-                  icon: Icons.insights_rounded,
-                  title: 'Mood History',
-                  description: 'View 7/30-day trends & insights',
-                  color: theme.colorScheme.primary,
-                  onTap: () {
-                    context.push(Routes.moodHistory);
-                  },
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildSecondaryActionCard(
+                        context: context,
+                        icon: Icons.history_rounded,
+                        title: 'Chat History',
+                        color: theme.colorScheme.tertiary,
+                        onTap: () {
+                          context.push(Routes.chatHistory);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildSecondaryActionCard(
+                        context: context,
+                        icon: Icons.insights_rounded,
+                        title: 'Mood History',
+                        color: theme.colorScheme.primary,
+                        onTap: () {
+                          context.push(Routes.moodHistory);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 32),
-                // Recent activity section
-                Text(
-                  'Your Journey',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+
+                // Your Progress - Journey Stats
+                _buildSectionHeader(context, 'Your Progress'),
                 const SizedBox(height: 16),
-                // Stats cards
                 Row(
                   children: [
                     Expanded(
@@ -143,6 +123,7 @@ class HomeScreen extends ConsumerWidget {
                         icon: Icons.local_fire_department_rounded,
                         value: '0',
                         label: 'Day Streak',
+                        color: Colors.orange,
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -152,12 +133,14 @@ class HomeScreen extends ConsumerWidget {
                         icon: Icons.check_circle_rounded,
                         value: '0',
                         label: 'Check-ins',
+                        color: theme.colorScheme.tertiary,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 32),
-                // Sign out button
+
+                // Sign Out Button
                 OutlinedButton.icon(
                   onPressed: () async {
                     await ref.read(authNotifierProvider.notifier).signOut();
@@ -184,12 +167,142 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildActionCard({
+  /// Enhanced welcome section with gradient, date/time, and warm greeting
+  Widget _buildWelcomeSection(BuildContext context, String displayName) {
+    final theme = Theme.of(context);
+    final now = DateTime.now();
+    final timeOfDay = DateFormat('EEEE, MMMM d').format(now);
+    final hour = now.hour;
+    
+    String greeting;
+    if (hour < 12) {
+      greeting = 'Good morning';
+    } else if (hour < 17) {
+      greeting = 'Good afternoon';
+    } else {
+      greeting = 'Good evening';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.primaryContainer,
+            theme.colorScheme.secondaryContainer.withOpacity(0.5),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                _getGreetingIcon(hour),
+                color: theme.colorScheme.primary,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  timeOfDay,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer.withOpacity(0.7),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '$greeting,',
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            displayName,
+            style: theme.textTheme.displaySmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.primary,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.spa_rounded,
+                  size: 16,
+                  color: theme.colorScheme.secondary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'How are you feeling today?',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Get appropriate greeting icon based on time of day
+  IconData _getGreetingIcon(int hour) {
+    if (hour < 12) {
+      return Icons.wb_sunny_rounded; // Morning
+    } else if (hour < 17) {
+      return Icons.wb_sunny_outlined; // Afternoon
+    } else {
+      return Icons.nights_stay_rounded; // Evening
+    }
+  }
+
+  /// Section header with consistent styling
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    final theme = Theme.of(context);
+    return Text(
+      title,
+      style: theme.textTheme.headlineSmall?.copyWith(
+        fontWeight: FontWeight.w700,
+        color: theme.colorScheme.onSurface,
+        letterSpacing: -0.5,
+      ),
+    );
+  }
+
+  /// Large primary action card with gradient background
+  Widget _buildPrimaryActionCard({
     required BuildContext context,
     required IconData icon,
     required String title,
     required String description,
-    required Color color,
+    required Gradient gradient,
     required VoidCallback onTap,
   }) {
     final theme = Theme.of(context);
@@ -197,39 +310,39 @@ class HomeScreen extends ConsumerWidget {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: theme.colorScheme.outline.withOpacity(0.2),
-          width: 1,
-        ),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                color.withOpacity(0.05),
-                color.withOpacity(0.02),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: (gradient.colors.first).withOpacity(0.25),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.all(24.0),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(14),
+                  color: Colors.white.withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(icon, size: 32, color: color),
+                child: Icon(
+                  icon,
+                  size: 36,
+                  color: Colors.white,
+                ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 20),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -237,29 +350,31 @@ class HomeScreen extends ConsumerWidget {
                     Text(
                       title,
                       style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       description,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onBackground.withOpacity(0.6),
+                        color: Colors.white.withOpacity(0.9),
+                        height: 1.4,
                       ),
                     ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: Colors.white.withOpacity(0.2),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.arrow_forward_ios_rounded,
-                  size: 16,
-                  color: color,
+                  size: 18,
+                  color: Colors.white,
                 ),
               ),
             ],
@@ -269,61 +384,127 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatCard({
+  /// Compact secondary action card for 2-column grid
+  Widget _buildSecondaryActionCard({
     required BuildContext context,
     required IconData icon,
-    required String value,
-    required String label,
+    required String title,
+    required Color color,
+    required VoidCallback onTap,
   }) {
     final theme = Theme.of(context);
 
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         side: BorderSide(
-          color: theme.colorScheme.outline.withOpacity(0.2),
-          width: 1,
+          color: theme.colorScheme.outline.withOpacity(0.15),
+          width: 1.5,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  icon,
+                  size: 28,
+                  color: color,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: theme.colorScheme.onSurface.withOpacity(0.4),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Enhanced stat card with colored icons
+  Widget _buildStatCard({
+    required BuildContext context,
+    required IconData icon,
+    required String value,
+    required String label,
+    required Color color,
+  }) {
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: theme.colorScheme.outline.withOpacity(0.15),
+          width: 1.5,
         ),
       ),
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              theme.colorScheme.primaryContainer.withOpacity(0.3),
-              theme.colorScheme.primaryContainer.withOpacity(0.1),
+              color.withOpacity(0.08),
+              color.withOpacity(0.03),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
         ),
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.1),
+                color: color.withOpacity(0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 28, color: theme.colorScheme.primary),
+              child: Icon(icon, size: 32, color: color),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Text(
               value,
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.primary,
+              style: theme.textTheme.displaySmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: color,
+                height: 1.0,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               label,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onBackground.withOpacity(0.7),
-                fontWeight: FontWeight.w500,
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                fontWeight: FontWeight.w600,
               ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),

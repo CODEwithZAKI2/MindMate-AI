@@ -1,28 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Typography system for the app
+/// Typography system for mental health app
+/// Using Plus Jakarta Sans - humanistic, warm, approachable
 class AppTypography {
-  // Font Family
-  static TextStyle get _baseTextStyle => GoogleFonts.inter();
+  // Font Family - Plus Jakarta Sans (warm, humanistic, friendly)
+  static TextStyle get _baseTextStyle => GoogleFonts.plusJakartaSans();
 
   // Display Styles - For large, impactful text
   static TextStyle displayLarge = _baseTextStyle.copyWith(
-    fontSize: 57,
+    fontSize: 60,
     fontWeight: FontWeight.w700,
     letterSpacing: -0.25,
     height: 1.12,
   );
 
   static TextStyle displayMedium = _baseTextStyle.copyWith(
-    fontSize: 45,
+    fontSize: 48,
     fontWeight: FontWeight.w700,
     letterSpacing: 0,
     height: 1.16,
   );
 
   static TextStyle displaySmall = _baseTextStyle.copyWith(
-    fontSize: 36,
+    fontSize: 38,
     fontWeight: FontWeight.w600,
     letterSpacing: 0,
     height: 1.22,
@@ -30,21 +31,21 @@ class AppTypography {
 
   // Headline Styles - For section headers
   static TextStyle headlineLarge = _baseTextStyle.copyWith(
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: FontWeight.w600,
     letterSpacing: 0,
     height: 1.25,
   );
 
   static TextStyle headlineMedium = _baseTextStyle.copyWith(
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: FontWeight.w600,
     letterSpacing: 0,
     height: 1.29,
   );
 
   static TextStyle headlineSmall = _baseTextStyle.copyWith(
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: FontWeight.w600,
     letterSpacing: 0,
     height: 1.33,
@@ -52,14 +53,14 @@ class AppTypography {
 
   // Title Styles - For card titles and list items
   static TextStyle titleLarge = _baseTextStyle.copyWith(
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: FontWeight.w600,
     letterSpacing: 0,
     height: 1.27,
   );
 
   static TextStyle titleMedium = _baseTextStyle.copyWith(
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: FontWeight.w600,
     letterSpacing: 0.15,
     height: 1.50,
@@ -72,23 +73,23 @@ class AppTypography {
     height: 1.43,
   );
 
-  // Body Styles - For main content
+  // Body Styles - For main content (increased for readability)
   static TextStyle bodyLarge = _baseTextStyle.copyWith(
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.5,
     height: 1.50,
   );
 
   static TextStyle bodyMedium = _baseTextStyle.copyWith(
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.25,
     height: 1.43,
   );
 
   static TextStyle bodySmall = _baseTextStyle.copyWith(
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.4,
     height: 1.33,
@@ -96,14 +97,14 @@ class AppTypography {
 
   // Label Styles - For buttons and small text
   static TextStyle labelLarge = _baseTextStyle.copyWith(
-    fontSize: 14,
-    fontWeight: FontWeight.w500,
+    fontSize: 15,
+    fontWeight: FontWeight.w600,
     letterSpacing: 0.1,
     height: 1.43,
   );
 
   static TextStyle labelMedium = _baseTextStyle.copyWith(
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: FontWeight.w500,
     letterSpacing: 0.5,
     height: 1.33,
@@ -119,21 +120,21 @@ class AppTypography {
   // Specialized Styles
 
   // Chat Message
-  static TextStyle chatMessage = bodyMedium.copyWith(
-    fontSize: 15,
-    height: 1.4,
+  static TextStyle chatMessage = bodyLarge.copyWith(
+    fontSize: 16,
+    height: 1.5,
   );
 
   // Chat Timestamp
   static TextStyle chatTimestamp = labelSmall.copyWith(
-    fontSize: 10,
+    fontSize: 11,
     color: Colors.grey,
   );
 
   // Button Text
   static TextStyle button = labelLarge.copyWith(
     fontWeight: FontWeight.w600,
-    letterSpacing: 1.25,
+    letterSpacing: 1.0,
   );
 
   // Input Label
@@ -179,6 +180,18 @@ class AppTypography {
   static TextStyle quote = bodyLarge.copyWith(
     fontStyle: FontStyle.italic,
     height: 1.6,
+  );
+
+  // Welcome text - warm and inviting
+  static TextStyle welcomeText = displaySmall.copyWith(
+    fontWeight: FontWeight.w700,
+    height: 1.2,
+  );
+
+  // Section header - clear hierarchy
+  static TextStyle sectionHeader = headlineSmall.copyWith(
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.5,
   );
 
   // Private Constructor

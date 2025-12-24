@@ -68,37 +68,53 @@ class ChatHistoryScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32.0),
+        padding: const EdgeInsets.all(40.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.chat_bubble_outline,
-              size: 80,
-              color: theme.colorScheme.primary.withOpacity(0.5),
+            Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer.withOpacity(0.5),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 64,
+                color: theme.colorScheme.primary,
+              ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
             Text(
               'No Conversations Yet',
               style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 12),
             Text(
               'Start a conversation with MindMate to begin your wellness journey',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onBackground.withOpacity(0.7),
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.6),
               ),
             ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
+            const SizedBox(height: 40),
+            FilledButton.icon(
               onPressed: () => _startNewChat(context, ref, userId),
-              icon: const Icon(Icons.add),
-              label: const Text('Start Your First Chat'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              icon: const Icon(Icons.add_rounded, size: 24),
+              label: const Text(
+                'Start Your First Chat',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
           ],
@@ -117,7 +133,7 @@ class ChatHistoryScreen extends ConsumerWidget {
       });
     
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       itemCount: sortedSessions.length,
       itemBuilder: (context, index) {
         final session = sortedSessions[index];
@@ -197,13 +213,20 @@ class _SessionCard extends StatelessWidget {
     final isActive = session.endedAt == null;
     
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: theme.colorScheme.outline.withOpacity(0.15),
+          width: 1.5,
+        ),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -211,35 +234,51 @@ class _SessionCard extends StatelessWidget {
                 children: [
                   // Status indicator
                   Container(
-                    width: 8,
-                    height: 8,
+                    width: 10,
+                    height: 10,
                     decoration: BoxDecoration(
-                      color: isActive ? Colors.green : Colors.grey,
+                      color: isActive
+                          ? theme.colorScheme.tertiary
+                          : theme.colorScheme.outline.withOpacity(0.4),
                       shape: BoxShape.circle,
+                      boxShadow: isActive
+                          ? [
+                              BoxShadow(
+                                color: theme.colorScheme.tertiary.withOpacity(0.3),
+                                blurRadius: 4,
+                              ),
+                            ]
+                          : null,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 12),
                   // Date and time
                   Expanded(
                     child: Text(
                       '$dateStr • $timeStr',
-                      style: theme.textTheme.labelMedium?.copyWith(
+                      style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
                   // Message count badge
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer,
+                      gradient: LinearGradient(
+                        colors: [
+                          theme.colorScheme.primaryContainer,
+                          theme.colorScheme.primaryContainer.withOpacity(0.7),
+                        ],
+                      ),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${session.messageCount} msgs',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onPrimaryContainer,
-                        fontWeight: FontWeight.bold,
+                      '${session.messageCount}',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),

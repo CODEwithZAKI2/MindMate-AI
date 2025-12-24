@@ -488,35 +488,59 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
               ),
 
-              // Message input
+              // Enhanced message input with pill-shape
               Container(
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surface,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, -2),
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 12,
+                      offset: const Offset(0, -4),
                     ),
                   ],
                 ),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 12.0,
+                  horizontal: 20.0,
+                  vertical: 16.0,
                 ),
                 child: Row(
                   children: [
                     Expanded(
                       child: TextField(
                         controller: _messageController,
+                        style: theme.textTheme.bodyLarge,
                         decoration: InputDecoration(
-                          hintText: 'Type your message...',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24),
+                          hintText: 'Share your thoughts...',
+                          hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurface.withOpacity(0.5),
                           ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(28),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.outline.withOpacity(0.2),
+                              width: 1.5,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(28),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.outline.withOpacity(0.2),
+                              width: 1.5,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(28),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.primary,
+                              width: 2.5,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
                           contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
+                            horizontal: 24,
+                            vertical: 14,
                           ),
                         ),
                         maxLines: null,
@@ -524,11 +548,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         onSubmitted: (_) => _sendMessage(),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    FloatingActionButton(
-                      onPressed: isLoading ? null : _sendMessage,
-                      mini: true,
-                      child: const Icon(Icons.send_rounded),
+                    const SizedBox(width: 14),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            theme.colorScheme.primary,
+                            theme.colorScheme.primary.withOpacity(0.8),
+                          ],
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: theme.colorScheme.primary.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: FloatingActionButton(
+                        onPressed: isLoading ? null : _sendMessage,
+                        mini: true,
+                        backgroundColor: Colors.transparent,
+                        elevation: 0,
+                        child: const Icon(Icons.send_rounded, color: Colors.white),
+                      ),
                     ),
                   ],
                 ),
@@ -571,23 +615,36 @@ class _ConnectivityBanner extends StatelessWidget {
     // Only show when offline
     if (isOnline) return const SizedBox.shrink();
 
+    final theme = Theme.of(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: Colors.grey.shade300,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4A574).withOpacity(0.15),
+        border: Border(
+          bottom: BorderSide(
+            color: const Color(0xFFF4A574).withOpacity(0.3),
+            width: 1.5,
+          ),
+        ),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.wifi_off_rounded, size: 16, color: Colors.grey.shade700),
-          const SizedBox(width: 8),
+          Icon(
+            Icons.wifi_off_rounded,
+            size: 18,
+            color: const Color(0xFFF4A574),
+          ),
+          const SizedBox(width: 10),
           Text(
             pendingCount > 0
                 ? 'No internet · $pendingCount message${pendingCount > 1 ? 's' : ''} pending'
                 : 'No internet connection',
-            style: TextStyle(
-              color: Colors.grey.shade700,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: const Color(0xFFC86A48),
               fontSize: 13,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -696,25 +753,29 @@ class _MessageBubble extends ConsumerWidget {
                                   ? LinearGradient(
                                     colors: [
                                       theme.colorScheme.primary,
-                                      theme.colorScheme.primary.withOpacity(
-                                        0.8,
-                                      ),
+                                      theme.colorScheme.primary.withOpacity(0.85),
                                     ],
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                   )
                                   : null,
-                          color: isUser ? null : Colors.grey[100],
+                          color: isUser ? null : theme.colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.only(
                             topLeft: const Radius.circular(20),
                             topRight: const Radius.circular(20),
-                            bottomLeft: Radius.circular(isUser ? 20 : 4),
-                            bottomRight: Radius.circular(isUser ? 4 : 20),
+                            bottomLeft: Radius.circular(isUser ? 20 : 6),
+                            bottomRight: Radius.circular(isUser ? 6 : 20),
+                          ),
+                          border: isUser ? null : Border.all(
+                            color: theme.colorScheme.outline.withOpacity(0.1),
+                            width: 1.5,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 4,
+                              color: isUser
+                                  ? theme.colorScheme.primary.withOpacity(0.15)
+                                  : Colors.black.withOpacity(0.04),
+                              blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
                           ],

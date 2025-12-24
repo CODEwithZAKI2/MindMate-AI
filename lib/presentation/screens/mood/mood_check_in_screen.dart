@@ -60,9 +60,20 @@ class _MoodCheckInScreenState extends ConsumerState<MoodCheckInScreen> {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Mood logged successfully!'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white),
+                SizedBox(width: 12),
+                Text('Mood logged successfully!'),
+              ],
+            ),
+            backgroundColor: Theme.of(context).colorScheme.tertiary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            duration: const Duration(seconds: 2),
           ),
         );
         
@@ -72,15 +83,25 @@ class _MoodCheckInScreenState extends ConsumerState<MoodCheckInScreen> {
         ref.read(currentMoodNoteProvider.notifier).state = '';
         _noteController.clear();
         
-        // Go back or to mood history
+        // Go back
         context.pop();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error logging mood: $e'),
+            content: Row(
+              children: [
+                const Icon(Icons.error_rounded, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Error logging mood: $e')),
+              ],
+            ),
             backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -97,7 +118,7 @@ class _MoodCheckInScreenState extends ConsumerState<MoodCheckInScreen> {
       appBar: AppBar(
         title: const Text('How are you feeling?'),
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: const Icon(Icons.close_rounded),
           onPressed: () => context.pop(),
         ),
       ),
@@ -106,54 +127,78 @@ class _MoodCheckInScreenState extends ConsumerState<MoodCheckInScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Mood emoji display
+            // Enhanced mood emoji display with glow effect
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+              padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    _getMoodColor(moodScore, theme).withOpacity(0.1),
-                    _getMoodColor(moodScore, theme).withOpacity(0.05),
+                    _getMoodColor(moodScore).withOpacity(0.12),
+                    _getMoodColor(moodScore).withOpacity(0.04),
                   ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: _getMoodColor(moodScore).withOpacity(0.15),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
               child: Column(
                 children: [
-                  Text(
-                    _getMoodEmoji(moodScore),
-                    style: const TextStyle(fontSize: 100),
+                  // Larger emoji with glow effect
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _getMoodColor(moodScore).withOpacity(0.2),
+                          blurRadius: 32,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      _getMoodEmoji(moodScore),
+                      style: const TextStyle(fontSize: 120),
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 20),
                   Text(
                     _getMoodLabel(moodScore),
                     style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: _getMoodColor(moodScore, theme),
+                      fontWeight: FontWeight.w700,
+                      color: _getMoodColor(moodScore),
+                      letterSpacing: -0.5,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 40),
             
             // Mood scale slider
             Text(
               'Rate your mood',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             SliderTheme(
               data: SliderTheme.of(context).copyWith(
-                activeTrackColor: _getMoodColor(moodScore, theme),
-                inactiveTrackColor: _getMoodColor(moodScore, theme).withOpacity(0.2),
-                thumbColor: _getMoodColor(moodScore, theme),
-                overlayColor: _getMoodColor(moodScore, theme).withOpacity(0.2),
-                trackHeight: 6,
+                activeTrackColor: _getMoodColor(moodScore),
+                inactiveTrackColor: _getMoodColor(moodScore).withOpacity(0.2),
+                thumbColor: _getMoodColor(moodScore),
+                overlayColor: _getMoodColor(moodScore).withOpacity(0.15),
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14),
+                trackHeight: 8,
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 24),
               ),
               child: Slider(
                 value: moodScore.toDouble(),
@@ -166,110 +211,159 @@ class _MoodCheckInScreenState extends ConsumerState<MoodCheckInScreen> {
                 },
               ),
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('😢 Very Bad', style: theme.textTheme.bodySmall),
-                Text('😊 Great', style: theme.textTheme.bodySmall),
-              ],
-            ),
-            const SizedBox(height: 32),
-            
-            // Tags section
-            Text(
-              'Add tags (optional)',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _availableTags.map((tag) {
-                final isSelected = selectedTags.contains(tag);
-                return FilterChip(
-                  label: Text(
-                    tag,
-                    style: TextStyle(
-                      color: isSelected 
-                        ? theme.colorScheme.onPrimary 
-                        : theme.colorScheme.onSurface,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '😢 Very Bad',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                  selected: isSelected,
-                  selectedColor: theme.colorScheme.primary,
-                  backgroundColor: theme.colorScheme.surfaceVariant,
-                  checkmarkColor: theme.colorScheme.onPrimary,
-                  onSelected: (selected) {
-                    final newTags = List<String>.from(selectedTags);
-                    if (selected) {
-                      newTags.add(tag);
-                    } else {
-                      newTags.remove(tag);
-                    }
-                    ref.read(currentMoodTagsProvider.notifier).state = newTags;
-                  },
+                  Text(
+                    '😊 Great',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 40),
+            
+            // Tags section - pill-shaped chips
+            Text(
+              'Add tags (optional)',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: _availableTags.map((tag) {
+                final isSelected = selectedTags.contains(tag);
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  child: FilterChip(
+                    label: Text(
+                      tag,
+                      style: TextStyle(
+                        color: isSelected 
+                          ? Colors.white
+                          : theme.colorScheme.onSurface,
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                        fontSize: 15,
+                      ),
+                    ),
+                    selected: isSelected,
+                    selectedColor: theme.colorScheme.primary,
+                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                    checkmarkColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    side: BorderSide(
+                      color: isSelected
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.outline.withOpacity(0.2),
+                      width: 1.5,
+                    ),
+                    onSelected: (selected) {
+                      final newTags = List<String>.from(selectedTags);
+                      if (selected) {
+                        newTags.add(tag);
+                      } else {
+                        newTags.remove(tag);
+                      }
+                      ref.read(currentMoodTagsProvider.notifier).state = newTags;
+                    },
+                  ),
                 );
               }).toList(),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 40),
             
             // Notes section
             Text(
               'Add a note (optional)',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             TextField(
               controller: _noteController,
-              maxLines: 4,
+              maxLines: 5,
               maxLength: 500,
+              style: theme.textTheme.bodyLarge,
               decoration: InputDecoration(
-                hintText: 'What\'s on your mind?',
+                hintText: 'What\'s on your mind? Share your thoughts or feelings...',
+                hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+                ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: theme.colorScheme.outline),
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.outline.withOpacity(0.3),
+                    width: 1.5,
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: theme.colorScheme.outline),
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.outline.withOpacity(0.3),
+                    width: 1.5,
+                  ),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.primary,
+                    width: 2.5,
+                  ),
                 ),
                 filled: true,
-                fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                contentPadding: const EdgeInsets.all(20),
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 40),
             
-            // Save button
+            // Enhanced save button with gradient
             SizedBox(
-              height: 56,
+              height: 60,
               child: FilledButton.icon(
                 onPressed: _saveMoodLog,
-                icon: const Icon(Icons.check_circle_rounded, size: 24),
+                icon: const Icon(Icons.check_circle_rounded, size: 26),
                 label: const Text(
                   'Save Mood Log',
                   style: TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
                   ),
                 ),
                 style: FilledButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  elevation: 2,
+                  elevation: 0,
+                  shadowColor: theme.colorScheme.primary.withOpacity(0.3),
+                ).copyWith(
+                  overlayColor: WidgetStateProperty.all(
+                    Colors.white.withOpacity(0.1),
+                  ),
                 ),
               ),
             ),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -310,18 +404,20 @@ class _MoodCheckInScreenState extends ConsumerState<MoodCheckInScreen> {
     }
   }
 
-  Color _getMoodColor(int score, ThemeData theme) {
+  Color _getMoodColor(int score) {
     switch (score) {
       case 1:
+        return const Color(0xFFE07A7A); // Soft red
       case 2:
-        return Colors.red;
+        return const Color(0xFFF4A574); // Warm orange
       case 3:
-        return Colors.orange;
+        return const Color(0xFFF9C86D); // Golden yellow
       case 4:
+        return const Color(0xFF8BC48A); // Gentle green
       case 5:
-        return Colors.green;
+        return const Color(0xFF7AC29A); // Vibrant green
       default:
-        return theme.colorScheme.primary;
+        return const Color(0xFFF9C86D);
     }
   }
 }
