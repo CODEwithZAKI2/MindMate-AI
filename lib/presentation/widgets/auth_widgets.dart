@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/constants/assets.dart';
 
 /// Welcoming Illustration for Auth Screens
 class WelcomeIllustration extends StatelessWidget {
@@ -24,122 +25,16 @@ class WelcomeIllustration extends StatelessWidget {
           ),
         );
       },
-      child: CustomPaint(
-        size: Size(size, size),
-        painter: _WelcomeIllustrationPainter(),
+      child: Image.asset(
+        AppAssets.authWelcome,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
       ),
     );
   }
 }
 
-class _WelcomeIllustrationPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..style = PaintingStyle.fill;
-    
-    // Serene Blue and Soft Coral colors
-    final primaryColor = const Color(0xFF5B8FB9);
-    final secondaryColor = const Color(0xFFE88B6C);
-    final tertiaryColor = const Color(0xFF88B0A8);
-    
-    // Background glow circles
-    paint.color = primaryColor.withOpacity(0.1);
-    canvas.drawCircle(
-      Offset(size.width * 0.5, size.height * 0.5),
-      size.width * 0.45,
-      paint,
-    );
-    
-    paint.color = secondaryColor.withOpacity(0.08);
-    canvas.drawCircle(
-      Offset(size.width * 0.5, size.height * 0.5),
-      size.width * 0.35,
-      paint,
-    );
-    
-    // Central meditation figure (simplified)
-    paint.color = primaryColor;
-    
-    // Head
-    canvas.drawCircle(
-      Offset(size.width * 0.5, size.height * 0.35),
-      size.width * 0.08,
-      paint,
-    );
-    
-    // Body (sitting position)
-    final bodyPath = Path();
-    bodyPath.moveTo(size.width * 0.5, size.height * 0.43);
-    bodyPath.quadraticBezierTo(
-      size.width * 0.45, size.height * 0.55,
-      size.width * 0.4, size.height * 0.65,
-    );
-    bodyPath.lineTo(size.width * 0.6, size.height * 0.65);
-    bodyPath.quadraticBezierTo(
-      size.width * 0.55, size.height * 0.55,
-      size.width * 0.5, size.height * 0.43,
-    );
-    bodyPath.close();
-    canvas.drawPath(bodyPath, paint);
-    
-    // Peaceful aura around head
-    paint.color = tertiaryColor.withOpacity(0.3);
-    paint.style = PaintingStyle.stroke;
-    paint.strokeWidth = 2;
-    
-    for (int i = 0; i < 3; i++) {
-      canvas.drawCircle(
-        Offset(size.width * 0.5, size.height * 0.35),
-        size.width * 0.12 + (i * size.width * 0.04),
-        paint,
-      );
-    }
-    
-    // Floating leaves/sparkles
-    paint.style = PaintingStyle.fill;
-    paint.color = tertiaryColor.withOpacity(0.6);
-    
-    final sparklePositions = [
-      Offset(size.width * 0.25, size.height * 0.3),
-      Offset(size.width * 0.75, size.height * 0.4),
-      Offset(size.width * 0.3, size.height * 0.6),
-      Offset(size.width * 0.7, size.height * 0.25),
-    ];
-    
-    for (final pos in sparklePositions) {
-      canvas.drawCircle(pos, size.width * 0.015, paint);
-    }
-    
-    // Larger floating leaves
-    paint.color = tertiaryColor.withOpacity(0.4);
-    final leaf1 = Path();
-    leaf1.moveTo(size.width * 0.2, size.height * 0.5);
-    leaf1.quadraticBezierTo(
-      size.width * 0.18, size.height * 0.48,
-      size.width * 0.2, size.height * 0.46,
-    );
-    leaf1.quadraticBezierTo(
-      size.width * 0.22, size.height * 0.48,
-      size.width * 0.2, size.height * 0.5,
-    );
-    canvas.drawPath(leaf1, paint);
-    
-    final leaf2 = Path();
-    leaf2.moveTo(size.width * 0.8, size.height * 0.55);
-    leaf2.quadraticBezierTo(
-      size.width * 0.78, size.height * 0.53,
-      size.width * 0.8, size.height * 0.51,
-    );
-    leaf2.quadraticBezierTo(
-      size.width * 0.82, size.height * 0.53,
-      size.width * 0.8, size.height * 0.55,
-    );
-    canvas.drawPath(leaf2, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
 
 /// Custom Google Sign In Button
 class GoogleSignInButton extends StatelessWidget {

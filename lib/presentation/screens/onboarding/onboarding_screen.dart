@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/routes.dart';
-import '../../widgets/custom_illustrations.dart';
+import '../../../core/constants/assets.dart';
+
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -74,21 +75,36 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 children: [
                   _buildPage(
                     theme: theme,
-                    illustration: const MeditationIllustration(size: 280),
+                    illustration: Image.asset(
+                      AppAssets.onboardingMeditation,
+                      width: 280,
+                      height: 280,
+                      fit: BoxFit.contain,
+                    ),
                     title: 'Find Your Peace',
                     description:
                         'Welcome to MindMate AI - your personal companion for mental wellness. Meditate, reflect, and find calm whenever you need it.',
                   ),
                   _buildPage(
                     theme: theme,
-                    illustration: const NatureSceneIllustration(size: 280),
+                    illustration: Image.asset(
+                      AppAssets.onboardingNature,
+                      width: 280,
+                      height: 280,
+                      fit: BoxFit.contain,
+                    ),
                     title: 'Connect with Calm',
                     description:
                         'Track your mood journey, have supportive conversations, and discover patterns that help you thrive.',
                   ),
                   _buildPage(
                     theme: theme,
-                    illustration: const ChatPlantIllustration(size: 240),
+                    illustration: Image.asset(
+                      AppAssets.authWelcome,
+                      width: 240,
+                      height: 240,
+                      fit: BoxFit.contain,
+                    ),
                     title: 'Grow with Support',
                     description:
                         'Safe, judgment-free conversations powered by AI. Your privacy is protected, and help is always available.',
