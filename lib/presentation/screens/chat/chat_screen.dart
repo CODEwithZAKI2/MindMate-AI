@@ -29,6 +29,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     with WidgetsBindingObserver {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _showScrollToBottom = false;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isOnline = true;
@@ -355,6 +356,240 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
+  /// Start a new chat session (UI action)
+  Future<void> _startNewSession() async {
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) return;
+
+    final newSession = ChatSession(
+      id: '',
+      userId: userId,
+      startedAt: DateTime.now(),
+      messageCount: 0,
+      messages: const [],
+    );
+
+    try {
+      final sessionId = await ref
+          .read(chatNotifierProvider.notifier)
+          .createChatSession(newSession);
+      ref.read(currentSessionIdProvider.notifier).state = sessionId;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error creating chat: $e')),
+        );
+      }
+    }
+  }
+
+  /// Build the chat history drawer (UI only)
+  Widget _buildHistoryDrawer(BuildContext context, ThemeData theme) {
+    final userId = ref.watch(currentUserIdProvider);
+    if (userId == null) {
+      return const Drawer(child: Center(child: Text('Please sign in')));
+    }
+
+    final sessionsAsync = ref.watch(chatSessionsStreamProvider(userId));
+
+    return Drawer(
+      backgroundColor: theme.colorScheme.surface,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      Icons.psychology_rounded,
+                      color: theme.colorScheme.primary,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Text(
+                    'Chat History',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // New Chat Button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _startNewSession();
+                },
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('New Chat'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            // Sessions List
+            Expanded(
+              child: sessionsAsync.when(
+                data: (sessions) => _buildSessionsList(theme, sessions),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Center(child: Text('Error: $e')),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build sessions list grouped by date
+  Widget _buildSessionsList(ThemeData theme, List<ChatSession> sessions) {
+    if (sessions.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 48,
+                color: theme.colorScheme.primary.withOpacity(0.5),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No conversations yet',
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final grouped = _groupSessionsByDate(sessions);
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      children: grouped.entries.map((entry) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
+              child: Text(
+                entry.key,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            ...entry.value.map((session) => _buildSessionTile(theme, session)),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  /// Group sessions by date
+  Map<String, List<ChatSession>> _groupSessionsByDate(List<ChatSession> sessions) {
+    final Map<String, List<ChatSession>> grouped = {};
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    for (final session in sessions) {
+      final sessionDate = session.lastMessageAt ?? session.startedAt;
+      final dateOnly = DateTime(sessionDate.year, sessionDate.month, sessionDate.day);
+
+      String label;
+      if (dateOnly == today) {
+        label = 'Today';
+      } else if (dateOnly == yesterday) {
+        label = 'Yesterday';
+      } else if (now.difference(dateOnly).inDays < 7) {
+        label = 'This Week';
+      } else {
+        label = DateFormat('MMMM yyyy').format(sessionDate);
+      }
+
+      grouped.putIfAbsent(label, () => []);
+      grouped[label]!.add(session);
+    }
+
+    return grouped;
+  }
+
+  /// Build session tile
+  Widget _buildSessionTile(ThemeData theme, ChatSession session) {
+    final currentSessionId = ref.watch(currentSessionIdProvider);
+    final isSelected = session.id == currentSessionId;
+    final displayTime = session.lastMessageAt ?? session.startedAt;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      child: ListTile(
+        onTap: () {
+          ref.read(currentSessionIdProvider.notifier).state = session.id;
+          Navigator.pop(context);
+        },
+        selected: isSelected,
+        selectedTileColor: theme.colorScheme.primaryContainer.withOpacity(0.3),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? theme.colorScheme.primary.withOpacity(0.2)
+                : theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            Icons.chat_bubble_outline_rounded,
+            size: 18,
+            color: isSelected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface.withOpacity(0.6),
+          ),
+        ),
+        title: Text(
+          session.summary ?? 'New Conversation',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+        subtitle: Text(
+          DateFormat('h:mm a').format(displayTime),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurface.withOpacity(0.5),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -372,9 +607,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final sessionAsync = ref.watch(chatSessionStreamProvider(sessionId));
 
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: _buildHistoryDrawer(context, theme),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
         title: const Text('MindMate AI Chat'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add_comment_outlined),
+            onPressed: () => _startNewSession(),
+            tooltip: 'New Chat',
+          ),
           IconButton(
             icon: const Icon(Icons.stop_circle_outlined),
             onPressed: _endSession,

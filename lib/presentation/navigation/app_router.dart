@@ -13,6 +13,8 @@ import '../screens/mood/mood_check_in_screen.dart';
 import '../screens/mood/mood_history_dashboard_screen.dart';
 import '../screens/chat/chat_screen.dart';
 import '../screens/chat/chat_history_screen.dart';
+import '../screens/chat/unified_chat_screen.dart';
+import './main_shell.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/settings/privacy_policy_screen.dart';
 import '../screens/settings/terms_of_service_screen.dart';
@@ -79,18 +81,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SignUpScreen(),
       ),
 
-      // Main App Routes
+      // Main App Routes - Now using MainShell with bottom nav
       GoRoute(
         path: Routes.home,
         name: 'home',
-        builder: (context, state) => const HomeScreen(),
+        builder: (context, state) => const MainShell(),
       ),
       
       // Chat routes
       GoRoute(
         path: Routes.chat,
         name: 'chat',
-        builder: (context, state) => const ChatScreen(),
+        builder: (context, state) => const UnifiedChatScreen(),
       ),
       GoRoute(
         path: Routes.chatHistory,
