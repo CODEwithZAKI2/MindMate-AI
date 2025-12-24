@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/routes.dart';
-import 'widgets/onboarding_page.dart';
+import '../../widgets/custom_illustrations.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -14,33 +14,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  final List<OnboardingPageData> _pages = [
-    OnboardingPageData(
-      icon: Icons.psychology_rounded,
-      title: 'Welcome to MindMate AI',
-      description:
-          'Your personal AI companion for mental wellness. Chat, track your mood, and find support whenever you need it.',
-    ),
-    OnboardingPageData(
-      icon: Icons.chat_bubble_rounded,
-      title: 'Safe & Supportive Conversations',
-      description:
-          'Have meaningful conversations with our AI companion. Share your thoughts, feelings, and concerns in a judgment-free space.',
-    ),
-    OnboardingPageData(
-      icon: Icons.mood_rounded,
-      title: 'Track Your Emotional Journey',
-      description:
-          'Monitor your mood patterns, gain insights, and celebrate your progress with visual trends and analytics.',
-    ),
-    OnboardingPageData(
-      icon: Icons.shield_rounded,
-      title: 'Privacy & Safety First',
-      description:
-          'Your data is encrypted and secure. We include crisis detection and will guide you to professional help when needed.',
-    ),
-  ];
-
   void _onPageChanged(int page) {
     setState(() {
       _currentPage = page;
@@ -48,21 +21,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _nextPage() {
-    if (_currentPage < _pages.length - 1) {
+    if (_currentPage < 2) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
     } else {
-      _goToSignIn();
+      context.go(Routes.signIn);
     }
   }
 
   void _skipOnboarding() {
-    _goToSignIn();
-  }
-
-  void _goToSignIn() {
     context.go(Routes.signIn);
   }
 
@@ -91,20 +60,40 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     'Skip',
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
               ),
             ),
-            // Page view
+            // Page view with custom illustrations
             Expanded(
-              child: PageView.builder(
+              child: PageView(
                 controller: _pageController,
                 onPageChanged: _onPageChanged,
-                itemCount: _pages.length,
-                itemBuilder: (context, index) {
-                  return OnboardingPage(data: _pages[index]);
-                },
+                children: [
+                  _buildPage(
+                    theme: theme,
+                    illustration: const MeditationIllustration(size: 280),
+                    title: 'Find Your Peace',
+                    description:
+                        'Welcome to MindMate AI - your personal companion for mental wellness. Meditate, reflect, and find calm whenever you need it.',
+                  ),
+                  _buildPage(
+                    theme: theme,
+                    illustration: const NatureSceneIllustration(size: 280),
+                    title: 'Connect with Calm',
+                    description:
+                        'Track your mood journey, have supportive conversations, and discover patterns that help you thrive.',
+                  ),
+                  _buildPage(
+                    theme: theme,
+                    illustration: const ChatPlantIllustration(size: 240),
+                    title: 'Grow with Support',
+                    description:
+                        'Safe, judgment-free conversations powered by AI. Your privacy is protected, and help is always available.',
+                  ),
+                ],
               ),
             ),
             // Page indicators
@@ -113,7 +102,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
-                  _pages.length,
+                  3,
                   (index) => _buildPageIndicator(index == _currentPage, theme),
                 ),
               ),
@@ -126,13 +115,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 height: 56,
                 child: FilledButton(
                   onPressed: _nextPage,
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
                   child: Text(
-                    _currentPage == _pages.length - 1
-                        ? 'Get Started'
-                        : 'Next',
+                    _currentPage == 2 ? 'Get Started' : 'Next',
                     style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -144,17 +136,67 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  Widget _buildPage({
+    required ThemeData theme,
+    required Widget illustration,
+    required String title,
+    required String description,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          illustration,
+          const SizedBox(height: 48),
+          Text(
+            title,
+            style: theme.textTheme.headlineLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.primary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            description,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              height: 1.5,
+              color: theme.colorScheme.onSurface.withOpacity(0.8),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPageIndicator(bool isActive, ThemeData theme) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.symmetric(horizontal: 4.0),
-      height: 8,
-      width: isActive ? 24 : 8,
+      height: 10,
+      width: isActive ? 32 : 10,
       decoration: BoxDecoration(
-        color: isActive
-            ? theme.colorScheme.primary
-            : theme.colorScheme.primary.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(4),
+        gradient: isActive
+            ? LinearGradient(
+                colors: [
+                  theme.colorScheme.primary,
+                  theme.colorScheme.primary.withOpacity(0.7),
+                ],
+              )
+            : null,
+        color: isActive ? null : theme.colorScheme.primary.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(5),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                  color: theme.colorScheme.primary.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
       ),
     );
   }

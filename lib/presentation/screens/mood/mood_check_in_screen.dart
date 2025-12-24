@@ -182,51 +182,83 @@ class _MoodCheckInScreenState extends ConsumerState<MoodCheckInScreen> {
             ),
             const SizedBox(height: 40),
             
-            // Mood scale slider
-            Text(
-              'Rate your mood',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
+            // Visual Mood Selector Grid (replacing slider)
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: theme.colorScheme.outline.withOpacity(0.1),
+                  width: 1.5,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                activeTrackColor: _getMoodColor(moodScore),
-                inactiveTrackColor: _getMoodColor(moodScore).withOpacity(0.2),
-                thumbColor: _getMoodColor(moodScore),
-                overlayColor: _getMoodColor(moodScore).withOpacity(0.15),
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14),
-                trackHeight: 8,
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 24),
-              ),
-              child: Slider(
-                value: moodScore.toDouble(),
-                min: 1,
-                max: 5,
-                divisions: 4,
-                label: moodScore.toString(),
-                onChanged: (value) {
-                  ref.read(currentMoodScoreProvider.notifier).state = value.toInt();
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '😢 Very Bad',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w500,
+                    'Select your mood',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  Text(
-                    '😊 Great',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [5, 4, 3, 2, 1].map((score) {
+                      final isSelected = moodScore == score;
+                      final color = _getMoodColor(score);
+                      
+                      return GestureDetector(
+                        onTap: () {
+                          ref.read(currentMoodScoreProvider.notifier).state = score;
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: 90,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            gradient: isSelected
+                                ? LinearGradient(
+                                    colors: [color, color.withOpacity(0.8)],
+                                  )
+                                : null,
+                            color: isSelected ? null : color.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: isSelected ? color : color.withOpacity(0.3),
+                              width: isSelected ? 3 : 1.5,
+                            ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: color.withOpacity(0.3),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                _getMoodEmoji(score),
+                                style: TextStyle(fontSize: isSelected ? 44 : 36),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _getMoodLabel(score),
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: isSelected ? Colors.white : color,
+                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ],
               ),

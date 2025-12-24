@@ -10,7 +10,7 @@ import '../screens/auth/sign_in_screen.dart';
 import '../screens/auth/sign_up_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/mood/mood_check_in_screen.dart';
-import '../screens/mood/mood_history_screen.dart';
+import '../screens/mood/mood_history_dashboard_screen.dart';
 import '../screens/chat/chat_screen.dart';
 import '../screens/chat/chat_history_screen.dart';
 import '../screens/settings/settings_screen.dart';
@@ -107,7 +107,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.moodHistory,
         name: 'moodHistory',
-        builder: (context, state) => const MoodHistoryScreen(),
+        builder: (context, state) => const MoodHistoryDashboardScreen(),
       ),
       GoRoute(
         path: Routes.insights,

@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/mood_provider.dart';
 import '../../../core/constants/routes.dart';
+import '../../widgets/custom_charts.dart';
+import '../../widgets/mood_widgets.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -112,31 +115,108 @@ class HomeScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 32),
 
-                // Your Progress - Journey Stats
+                // Your Progress - Journey Stats with Progress Rings
                 _buildSectionHeader(context, 'Your Progress'),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildStatCard(
-                        context: context,
-                        icon: Icons.local_fire_department_rounded,
-                        value: '0',
-                        label: 'Day Streak',
-                        color: Colors.orange,
+                
+                // Fetch mood logs to calculate actual stats
+                Consumer(
+                  builder: (context, ref, child) {
+                    final moodLogsAsync = ref.watch(moodLogsStreamProvider(user.id));
+                    
+                    return moodLogsAsync.when(
+                      data: (logs) {
+                        // Calculate day streak
+                        final streak = _calculateStreak(logs);
+                        final totalCheckIns = logs.length;
+                        final streakProgress = streak > 0 ? (streak / 30).clamp(0.0, 1.0) : 0.0;
+                        final checkInsProgress = totalCheckIns > 0 ? (totalCheckIns / 100).clamp(0.0, 1.0) : 0.0;
+                        
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: ProgressRing(
+                                progress: streakProgress,
+                                value: streak.toString(),
+                                label: 'Day Streak',
+                                color: Colors.orange,
+                                icon: Icons.local_fire_department_rounded,
+                                size: 110,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: ProgressRing(
+                                progress: checkInsProgress,
+                                value: totalCheckIns.toString(),
+                                label: 'Check-ins',
+                                color: theme.colorScheme.tertiary,
+                                icon: Icons.check_circle_rounded,
+                                size: 110,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                      loading: () => Row(
+                        children: [
+                          Expanded(
+                            child: ProgressRing(
+                              progress: 0.0,
+                              value: '...',
+                              label: 'Day Streak',
+                              color: Colors.orange,
+                              icon: Icons.local_fire_department_rounded,
+                              size: 110,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: ProgressRing(
+                              progress: 0.0,
+                              value: '...',
+                              label: 'Check-ins',
+                              color: theme.colorScheme.tertiary,
+                              icon: Icons.check_circle_rounded,
+                              size: 110,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildStatCard(
-                        context: context,
-                        icon: Icons.check_circle_rounded,
-                        value: '0',
-                        label: 'Check-ins',
-                        color: theme.colorScheme.tertiary,
+                      error: (_, __) => Row(
+                        children: [
+                          Expanded(
+                            child: ProgressRing(
+                              progress: 0.0,
+                              value: '0',
+                              label: 'Day Streak',
+                              color: Colors.orange,
+                              icon: Icons.local_fire_department_rounded,
+                              size: 110,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: ProgressRing(
+                              progress: 0.0,
+                              value: '0',
+                              label: 'Check-ins',
+                              color: theme.colorScheme.tertiary,
+                              icon: Icons.check_circle_rounded,
+                              size: 110,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 32),
+
+                // Daily Wellness Tip
+                DailyTipCard(
+                  tip: 'Take 3 deep breaths and notice how you feel right now.',
+                  icon: Icons.spa_rounded,
                 ),
                 const SizedBox(height: 32),
 
@@ -188,8 +268,8 @@ class HomeScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            theme.colorScheme.primaryContainer,
-            theme.colorScheme.secondaryContainer.withOpacity(0.5),
+            theme.colorScheme.primary,
+            theme.colorScheme.secondary,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -210,7 +290,7 @@ class HomeScreen extends ConsumerWidget {
             children: [
               Icon(
                 _getGreetingIcon(hour),
-                color: theme.colorScheme.primary,
+                color: Colors.white.withOpacity(0.9),
                 size: 28,
               ),
               const SizedBox(width: 12),
@@ -218,7 +298,7 @@ class HomeScreen extends ConsumerWidget {
                 child: Text(
                   timeOfDay,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer.withOpacity(0.7),
+                    color: Colors.white.withOpacity(0.85),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -229,7 +309,7 @@ class HomeScreen extends ConsumerWidget {
           Text(
             '$greeting,',
             style: theme.textTheme.titleLarge?.copyWith(
-              color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
+              color: Colors.white.withOpacity(0.9),
             ),
           ),
           const SizedBox(height: 4),
@@ -237,7 +317,8 @@ class HomeScreen extends ConsumerWidget {
             displayName,
             style: theme.textTheme.displaySmall?.copyWith(
               fontWeight: FontWeight.w700,
-              color: theme.colorScheme.primary,
+              color: Colors.white,
+              letterSpacing: -0.5,
               height: 1.2,
             ),
           ),
@@ -281,6 +362,27 @@ class HomeScreen extends ConsumerWidget {
     } else {
       return Icons.nights_stay_rounded; // Evening
     }
+  }
+
+  /// Calculate consecutive day streak from mood logs
+  static int _calculateStreak(List<dynamic> logs) {
+    if (logs.isEmpty) return 0;
+    
+    final dateSet = logs.map((log) {
+      final createdAt = log.createdAt as DateTime;
+      return DateTime(createdAt.year, createdAt.month, createdAt.day);
+    }).toSet();
+    
+    var currentDate = DateTime.now();
+    currentDate = DateTime(currentDate.year, currentDate.month, currentDate.day);
+    var streak = 0;
+    
+    while (dateSet.contains(currentDate)) {
+      streak++;
+      currentDate = currentDate.subtract(const Duration(days: 1));
+    }
+    
+    return streak;
   }
 
   /// Section header with consistent styling
