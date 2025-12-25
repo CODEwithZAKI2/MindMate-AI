@@ -115,316 +115,429 @@ class _MoodCheckInScreenState extends ConsumerState<MoodCheckInScreen> {
     final selectedTags = ref.watch(currentMoodTagsProvider);
 
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('How are you feeling?'),
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => context.pop(),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: Text(
+          'How are you feeling?',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+          ),
+        ),
+        centerTitle: true,
+        leading: Container(
+          margin: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: IconButton(
+            icon: Icon(
+              Icons.close_rounded,
+              color: theme.colorScheme.onSurface.withOpacity(0.7),
+            ),
+            onPressed: () => context.pop(),
+          ),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Enhanced mood emoji display with glow effect
+            // Premium mood display with calming gradient
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+              padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    _getMoodColor(moodScore).withOpacity(0.12),
-                    _getMoodColor(moodScore).withOpacity(0.04),
+                    _getMoodColor(moodScore).withOpacity(0.15),
+                    _getMoodColor(moodScore).withOpacity(0.05),
+                    theme.colorScheme.surface,
                   ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
+                  stops: const [0.0, 0.6, 1.0],
                 ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: _getMoodColor(moodScore).withOpacity(0.15),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+                borderRadius: BorderRadius.circular(32),
               ),
               child: Column(
                 children: [
-                  // Larger emoji with glow effect
+                  // Custom mood icon with animated glow
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(28),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.5),
+                      gradient: LinearGradient(
+                        colors: [
+                          _getMoodColor(moodScore),
+                          _getMoodColor(moodScore).withOpacity(0.8),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: _getMoodColor(moodScore).withOpacity(0.2),
-                          blurRadius: 32,
+                          color: _getMoodColor(moodScore).withOpacity(0.35),
+                          blurRadius: 40,
+                          spreadRadius: 8,
                         ),
                       ],
                     ),
-                    child: Text(
-                      _getMoodEmoji(moodScore),
-                      style: const TextStyle(fontSize: 120),
+                    child: Icon(
+                      _getMoodIcon(moodScore),
+                      size: 72,
+                      color: Colors.white,
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
+                  // Mood label with refined typography
                   Text(
                     _getMoodLabel(moodScore),
-                    style: theme.textTheme.headlineSmall?.copyWith(
+                    style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: _getMoodColor(moodScore),
                       letterSpacing: -0.5,
                     ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 40),
-            
-            // Visual Mood Selector Grid (replacing slider)
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: theme.colorScheme.outline.withOpacity(0.1),
-                  width: 1.5,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                  const SizedBox(height: 8),
                   Text(
-                    'Select your mood',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
+                    _getMoodDescription(moodScore),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.6),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [5, 4, 3, 2, 1].map((score) {
-                      final isSelected = moodScore == score;
-                      final color = _getMoodColor(score);
-                      
-                      return GestureDetector(
-                        onTap: () {
-                          ref.read(currentMoodScoreProvider.notifier).state = score;
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          width: 90,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          decoration: BoxDecoration(
-                            gradient: isSelected
-                                ? LinearGradient(
-                                    colors: [color, color.withOpacity(0.8)],
-                                  )
-                                : null,
-                            color: isSelected ? null : color.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: isSelected ? color : color.withOpacity(0.3),
-                              width: isSelected ? 3 : 1.5,
-                            ),
-                            boxShadow: isSelected
-                                ? [
-                                    BoxShadow(
-                                      color: color.withOpacity(0.3),
-                                      blurRadius: 12,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ]
-                                : null,
-                          ),
-                          child: Column(
-                            children: [
-                              Text(
-                                _getMoodEmoji(score),
-                                style: TextStyle(fontSize: isSelected ? 44 : 36),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                _getMoodLabel(score),
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  color: isSelected ? Colors.white : color,
-                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 32),
             
-            // Tags section - pill-shaped chips
-            Text(
-              'Add tags (optional)',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
+            // Modern Mood Selector - Horizontal Cards
+            _buildSectionTitle(context, 'Select your mood', Icons.touch_app_rounded),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 130,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: 5,
+                itemBuilder: (context, index) {
+                  final score = 5 - index; // 5, 4, 3, 2, 1
+                  final isSelected = moodScore == score;
+                  final color = _getMoodColor(score);
+                  
+                  return GestureDetector(
+                    onTap: () {
+                      ref.read(currentMoodScoreProvider.notifier).state = score;
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
+                      width: 100,
+                      margin: EdgeInsets.only(
+                        right: 12,
+                        top: isSelected ? 0 : 8,
+                        bottom: isSelected ? 8 : 0,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: isSelected
+                            ? LinearGradient(
+                                colors: [color, color.withOpacity(0.85)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                            : null,
+                        color: isSelected ? null : theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: isSelected ? color : theme.colorScheme.outline.withOpacity(0.1),
+                          width: isSelected ? 0 : 1,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: color.withOpacity(0.3),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isSelected 
+                                  ? Colors.white.withOpacity(0.2)
+                                  : color.withOpacity(0.1),
+                            ),
+                            child: Icon(
+                              _getMoodIcon(score),
+                              size: 32,
+                              color: isSelected ? Colors.white : color,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            _getMoodLabel(score),
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: isSelected ? Colors.white : theme.colorScheme.onSurface.withOpacity(0.8),
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
+            const SizedBox(height: 32),
+            
+            // Tags section - Modern pill design
+            _buildSectionTitle(context, 'Add tags (optional)', Icons.label_rounded),
             const SizedBox(height: 16),
             Wrap(
               spacing: 10,
               runSpacing: 10,
               children: _availableTags.map((tag) {
                 final isSelected = selectedTags.contains(tag);
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  child: FilterChip(
-                    label: Text(
-                      tag,
-                      style: TextStyle(
+                return GestureDetector(
+                  onTap: () {
+                    final newTags = List<String>.from(selectedTags);
+                    if (isSelected) {
+                      newTags.remove(tag);
+                    } else {
+                      newTags.add(tag);
+                    }
+                    ref.read(currentMoodTagsProvider.notifier).state = newTags;
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                    decoration: BoxDecoration(
+                      gradient: isSelected
+                          ? LinearGradient(
+                              colors: [
+                                theme.colorScheme.primary,
+                                theme.colorScheme.primary.withOpacity(0.85),
+                              ],
+                            )
+                          : null,
+                      color: isSelected ? null : theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(
                         color: isSelected 
-                          ? Colors.white
-                          : theme.colorScheme.onSurface,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                        fontSize: 15,
+                            ? Colors.transparent 
+                            : theme.colorScheme.outline.withOpacity(0.15),
+                        width: 1,
                       ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: theme.colorScheme.primary.withOpacity(0.2),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
                     ),
-                    selected: isSelected,
-                    selectedColor: theme.colorScheme.primary,
-                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                    checkmarkColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isSelected) ...[
+                          const Icon(
+                            Icons.check_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Text(
+                          tag,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                    side: BorderSide(
-                      color: isSelected
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.outline.withOpacity(0.2),
-                      width: 1.5,
-                    ),
-                    onSelected: (selected) {
-                      final newTags = List<String>.from(selectedTags);
-                      if (selected) {
-                        newTags.add(tag);
-                      } else {
-                        newTags.remove(tag);
-                      }
-                      ref.read(currentMoodTagsProvider.notifier).state = newTags;
-                    },
                   ),
                 );
               }).toList(),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 32),
             
-            // Notes section
-            Text(
-              'Add a note (optional)',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            // Notes section - Refined input
+            _buildSectionTitle(context, 'Add a note (optional)', Icons.edit_note_rounded),
             const SizedBox(height: 16),
-            TextField(
-              controller: _noteController,
-              maxLines: 5,
-              maxLength: 500,
-              style: theme.textTheme.bodyLarge,
-              decoration: InputDecoration(
-                hintText: 'What\'s on your mind? Share your thoughts or feelings...',
-                hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.shadow.withOpacity(0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _noteController,
+                maxLines: 4,
+                maxLength: 500,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  height: 1.5,
                 ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: theme.colorScheme.outline.withOpacity(0.3),
-                    width: 1.5,
+                decoration: InputDecoration(
+                  hintText: 'Share your thoughts or feelings...',
+                  hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.4),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide(
+                      color: theme.colorScheme.outline.withOpacity(0.1),
+                      width: 1,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide(
+                      color: theme.colorScheme.primary.withOpacity(0.5),
+                      width: 2,
+                    ),
+                  ),
+                  filled: true,
+                  fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
+                  contentPadding: const EdgeInsets.all(20),
+                  counterStyle: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.4),
                   ),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: theme.colorScheme.outline.withOpacity(0.3),
-                    width: 1.5,
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: theme.colorScheme.primary,
-                    width: 2.5,
-                  ),
-                ),
-                filled: true,
-                fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
-                contentPadding: const EdgeInsets.all(20),
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 32),
             
-            // Enhanced save button with gradient
-            SizedBox(
+            // Premium save button with gradient
+            Container(
               height: 60,
-              child: FilledButton.icon(
-                onPressed: _saveMoodLog,
-                icon: const Icon(Icons.check_circle_rounded, size: 26),
-                label: const Text(
-                  'Save Mood Log',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.secondary.withOpacity(0.9),
+                  ],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
                 ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withOpacity(0.25),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
                   ),
-                  elevation: 0,
-                  shadowColor: theme.colorScheme.primary.withOpacity(0.3),
-                ).copyWith(
-                  overlayColor: WidgetStateProperty.all(
-                    Colors.white.withOpacity(0.1),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _saveMoodLog,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Save Mood Log',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 32),
           ],
         ),
       ),
     );
   }
 
-  String _getMoodEmoji(int score) {
+  Widget _buildSectionTitle(BuildContext context, String title, IconData icon) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            icon,
+            size: 18,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Modern mood icons instead of classic emojis
+  IconData _getMoodIcon(int score) {
     switch (score) {
       case 1:
-        return '😢';
+        return Icons.sentiment_very_dissatisfied_rounded;
       case 2:
-        return '😕';
+        return Icons.sentiment_dissatisfied_rounded;
       case 3:
-        return '😐';
+        return Icons.sentiment_neutral_rounded;
       case 4:
-        return '🙂';
+        return Icons.sentiment_satisfied_rounded;
       case 5:
-        return '😊';
+        return Icons.sentiment_very_satisfied_rounded;
       default:
-        return '😐';
+        return Icons.sentiment_neutral_rounded;
     }
   }
 
   String _getMoodLabel(int score) {
     switch (score) {
       case 1:
-        return 'Very Bad';
+        return 'Struggling';
       case 2:
-        return 'Bad';
+        return 'Low';
       case 3:
         return 'Okay';
       case 4:
@@ -436,20 +549,38 @@ class _MoodCheckInScreenState extends ConsumerState<MoodCheckInScreen> {
     }
   }
 
+  String _getMoodDescription(int score) {
+    switch (score) {
+      case 1:
+        return 'It\'s okay to have hard days';
+      case 2:
+        return 'Acknowledging how you feel is strength';
+      case 3:
+        return 'A balanced moment in your day';
+      case 4:
+        return 'You\'re doing well today';
+      case 5:
+        return 'Wonderful! Embrace this feeling';
+      default:
+        return 'A balanced moment in your day';
+    }
+  }
+
   Color _getMoodColor(int score) {
     switch (score) {
       case 1:
-        return const Color(0xFFE07A7A); // Soft red
+        return const Color(0xFFB5838D); // Dusty rose
       case 2:
-        return const Color(0xFFF4A574); // Warm orange
+        return const Color(0xFFE5989B); // Soft coral
       case 3:
-        return const Color(0xFFF9C86D); // Golden yellow
+        return const Color(0xFFB8C0A9); // Sage green
       case 4:
-        return const Color(0xFF8BC48A); // Gentle green
+        return const Color(0xFF8CB369); // Fresh green
       case 5:
-        return const Color(0xFF7AC29A); // Vibrant green
+        return const Color(0xFF6A9B7E); // Calming teal-green
       default:
-        return const Color(0xFFF9C86D);
+        return const Color(0xFFB8C0A9);
     }
   }
 }
+
