@@ -86,38 +86,52 @@ class _MainShellState extends ConsumerState<MainShell>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      // Hide bottom nav when on Chat screen (index 1)
-      bottomNavigationBar: _currentIndex == 1
-          ? null
-          : Container(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.colorScheme.shadow.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: SafeArea(
-                child: Container(
-                  height: 64,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: List.generate(_navItems.length, (index) {
-                      return _buildNavItem(index, theme);
-                    }),
+    // Handle back button: go to Home tab first, then exit
+    return PopScope(
+      canPop: _currentIndex == 0, // Only allow pop when on Home tab
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _currentIndex != 0) {
+          // Go back to Home tab instead of exiting
+          _iconControllers[_currentIndex].reverse();
+          _iconControllers[0].forward();
+          setState(() {
+            _currentIndex = 0;
+          });
+        }
+      },
+      child: Scaffold(
+        body: IndexedStack(
+          index: _currentIndex,
+          children: _screens,
+        ),
+        // Hide bottom nav when on Chat screen (index 1)
+        bottomNavigationBar: _currentIndex == 1
+            ? null
+            : Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.colorScheme.shadow.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: Container(
+                    height: 64,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: List.generate(_navItems.length, (index) {
+                        return _buildNavItem(index, theme);
+                      }),
+                    ),
                   ),
                 ),
               ),
-            ),
+      ),
     );
   }
 
