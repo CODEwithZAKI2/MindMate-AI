@@ -17,14 +17,91 @@ class HomeScreen extends ConsumerWidget {
     final authState = ref.watch(authStateProvider);
 
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('MindMate AI'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                theme.colorScheme.primaryContainer.withOpacity(0.15),
+                theme.colorScheme.surface,
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+        ),
+        title: Row(
+          children: [
+            // Branded logo container
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.secondary.withOpacity(0.9),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.spa_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Brand name with subtle styling
+            Text(
+              'MindMate',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurface,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'AI',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.primary,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_rounded),
-            onPressed: () {
-              context.push(Routes.settings);
-            },
+          // Notification button
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: Icon(
+                Icons.notifications_rounded,
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                size: 22,
+              ),
+              onPressed: () {
+                // Notification action placeholder
+              },
+            ),
           ),
         ],
       ),
