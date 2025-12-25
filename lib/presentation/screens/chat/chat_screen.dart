@@ -590,6 +590,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
+  /// Build a calming suggestion chip for empty state (UI only)
+  Widget _buildSuggestionChip(String text, ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.15),
+          width: 1,
+        ),
+      ),
+      child: Text(
+        text,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.primary.withOpacity(0.8),
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -609,22 +631,120 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     return Scaffold(
       key: _scaffoldKey,
       drawer: _buildHistoryDrawer(context, theme),
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.menu_rounded),
-          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        ),
-        title: const Text('MindMate AI Chat'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_comment_outlined),
-            onPressed: () => _startNewSession(),
-            tooltip: 'New Chat',
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                theme.colorScheme.primaryContainer.withOpacity(0.3),
+                theme.colorScheme.surface,
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.stop_circle_outlined),
-            onPressed: _endSession,
-            tooltip: 'End Conversation',
+        ),
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: Icon(
+                Icons.menu_rounded,
+                color: theme.colorScheme.onSurface.withOpacity(0.8),
+              ),
+              onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+            ),
+          ),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary.withOpacity(0.9),
+                    theme.colorScheme.secondary.withOpacity(0.8),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.psychology_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'MindMate AI',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                Text(
+                  'Your safe space',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.primary.withOpacity(0.7),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 4),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: Icon(
+                Icons.add_comment_rounded,
+                color: theme.colorScheme.primary,
+                size: 22,
+              ),
+              onPressed: () => _startNewSession(),
+              tooltip: 'New Chat',
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.errorContainer.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: Icon(
+                Icons.logout_rounded,
+                color: theme.colorScheme.error.withOpacity(0.8),
+                size: 22,
+              ),
+              onPressed: _endSession,
+              tooltip: 'End Conversation',
+            ),
           ),
         ],
       ),
@@ -663,31 +783,71 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
                     if (messages.isEmpty) {
                       return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.chat_bubble_outline,
-                              size: 80,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Start a conversation',
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                color: Colors.grey,
+                        child: Padding(
+                          padding: const EdgeInsets.all(40.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // Calming gradient icon container
+                              Container(
+                                padding: const EdgeInsets.all(32),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      theme.colorScheme.primaryContainer.withOpacity(0.4),
+                                      theme.colorScheme.secondaryContainer.withOpacity(0.3),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: theme.colorScheme.primary.withOpacity(0.08),
+                                      blurRadius: 40,
+                                      spreadRadius: 10,
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  Icons.spa_rounded,
+                                  size: 56,
+                                  color: theme.colorScheme.primary.withOpacity(0.7),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 48.0),
-                              child: Text(
-                                'Share what\'s on your mind. I\'m here to listen and support you.',
+                              const SizedBox(height: 32),
+                              Text(
+                                'Welcome to Your Safe Space',
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: theme.colorScheme.onSurface,
+                                  letterSpacing: -0.5,
+                                ),
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 12),
+                              Text(
+                                'Take a deep breath. Share what\'s on your mind\nwhenever you\'re ready. I\'m here to listen.',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                  height: 1.6,
+                                ),
+                              ),
+                              const SizedBox(height: 32),
+                              // Subtle suggestion chips
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                alignment: WrapAlignment.center,
+                                children: [
+                                  _buildSuggestionChip('How are you feeling?', theme),
+                                  _buildSuggestionChip('I need to talk', theme),
+                                  _buildSuggestionChip('Help me relax', theme),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     }
@@ -734,93 +894,108 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
               ),
 
-              // Enhanced message input with pill-shape
+              // Premium calming message input area
               Container(
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.colorScheme.surface,
+                      theme.colorScheme.primaryContainer.withOpacity(0.1),
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
-                      blurRadius: 12,
-                      offset: const Offset(0, -4),
+                      color: theme.colorScheme.primary.withOpacity(0.04),
+                      blurRadius: 20,
+                      offset: const Offset(0, -8),
                     ),
                   ],
                 ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20.0,
-                  vertical: 16.0,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        style: theme.textTheme.bodyLarge,
-                        decoration: InputDecoration(
-                          hintText: 'Share your thoughts...',
-                          hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(0.5),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(28),
-                            borderSide: BorderSide(
-                              color: theme.colorScheme.outline.withOpacity(0.2),
-                              width: 1.5,
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: theme.colorScheme.outline.withOpacity(0.08),
+                                width: 1,
+                              ),
                             ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(28),
-                            borderSide: BorderSide(
-                              color: theme.colorScheme.outline.withOpacity(0.2),
-                              width: 1.5,
+                            child: TextField(
+                              controller: _messageController,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                color: theme.colorScheme.onSurface,
+                                height: 1.4,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Share your thoughts...',
+                                hintStyle: theme.textTheme.bodyLarge?.copyWith(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.4),
+                                ),
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 14,
+                                ),
+                              ),
+                              maxLines: 4,
+                              minLines: 1,
+                              textCapitalization: TextCapitalization.sentences,
+                              onSubmitted: (_) => _sendMessage(),
                             ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(28),
-                            borderSide: BorderSide(
-                              color: theme.colorScheme.primary,
-                              width: 2.5,
-                            ),
-                          ),
-                          filled: true,
-                          fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 14,
                           ),
                         ),
-                        maxLines: null,
-                        textCapitalization: TextCapitalization.sentences,
-                        onSubmitted: (_) => _sendMessage(),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            theme.colorScheme.primary,
-                            theme.colorScheme.primary.withOpacity(0.8),
-                          ],
-                        ),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: theme.colorScheme.primary.withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
+                        const SizedBox(width: 12),
+                        // Calming gradient send button
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                theme.colorScheme.primary,
+                                theme.colorScheme.secondary.withOpacity(0.9),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: theme.colorScheme.primary.withOpacity(0.25),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      child: FloatingActionButton(
-                        onPressed: isLoading ? null : _sendMessage,
-                        mini: true,
-                        backgroundColor: Colors.transparent,
-                        elevation: 0,
-                        child: const Icon(Icons.send_rounded, color: Colors.white),
-                      ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: isLoading ? null : _sendMessage,
+                              borderRadius: BorderRadius.circular(24),
+                              child: Container(
+                                width: 48,
+                                height: 48,
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  Icons.arrow_upward_rounded,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ],
@@ -945,7 +1120,7 @@ class _MessageBubble extends ConsumerWidget {
     final isSending = pendingMsg?.isSending ?? false;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.only(bottom: 16.0),
       child: Column(
         crossAxisAlignment:
             isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -953,29 +1128,38 @@ class _MessageBubble extends ConsumerWidget {
           Row(
             mainAxisAlignment:
                 isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               if (!isUser) ...[
+                // AI Avatar - calming therapeutic design
                 Container(
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
                       colors: [
-                        theme.colorScheme.secondary,
-                        theme.colorScheme.secondary.withOpacity(0.7),
+                        theme.colorScheme.secondary.withOpacity(0.9),
+                        theme.colorScheme.primary.withOpacity(0.7),
                       ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.colorScheme.secondary.withOpacity(0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  child: CircleAvatar(
-                    backgroundColor: Colors.transparent,
-                    child: Icon(
-                      Icons.psychology_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
+                  child: const Icon(
+                    Icons.spa_rounded,
+                    color: Colors.white,
+                    size: 18,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
               ],
               Flexible(
                 child: Column(
@@ -990,8 +1174,8 @@ class _MessageBubble extends ConsumerWidget {
                       ),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
+                          horizontal: 18,
+                          vertical: 14,
                         ),
                         decoration: BoxDecoration(
                           gradient:
@@ -1004,25 +1188,29 @@ class _MessageBubble extends ConsumerWidget {
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                   )
-                                  : null,
-                          color: isUser ? null : theme.colorScheme.surfaceContainerHighest,
+                                  : LinearGradient(
+                                    colors: [
+                                      theme.colorScheme.surfaceContainerHighest,
+                                      theme.colorScheme.surfaceContainerHighest.withOpacity(0.9),
+                                    ],
+                                  ),
                           borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(20),
-                            topRight: const Radius.circular(20),
-                            bottomLeft: Radius.circular(isUser ? 20 : 6),
-                            bottomRight: Radius.circular(isUser ? 6 : 20),
+                            topLeft: const Radius.circular(22),
+                            topRight: const Radius.circular(22),
+                            bottomLeft: Radius.circular(isUser ? 22 : 6),
+                            bottomRight: Radius.circular(isUser ? 6 : 22),
                           ),
                           border: isUser ? null : Border.all(
-                            color: theme.colorScheme.outline.withOpacity(0.1),
-                            width: 1.5,
+                            color: theme.colorScheme.outline.withOpacity(0.06),
+                            width: 1,
                           ),
                           boxShadow: [
                             BoxShadow(
                               color: isUser
-                                  ? theme.colorScheme.primary.withOpacity(0.15)
-                                  : Colors.black.withOpacity(0.04),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+                                  ? theme.colorScheme.primary.withOpacity(0.12)
+                                  : theme.colorScheme.shadow.withOpacity(0.04),
+                              blurRadius: 12,
+                              offset: const Offset(0, 3),
                             ),
                           ],
                         ),
@@ -1268,7 +1456,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
   }
 }
 
-// Typing indicator as a message bubble
+// Typing indicator as a message bubble - calming therapeutic design
 class _TypingIndicatorBubble extends StatelessWidget {
   const _TypingIndicatorBubble();
 
@@ -1277,46 +1465,65 @@ class _TypingIndicatorBubble extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.only(bottom: 16.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          // Matching AI avatar with spa icon
           Container(
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
                 colors: [
-                  theme.colorScheme.secondary,
-                  theme.colorScheme.secondary.withOpacity(0.7),
+                  theme.colorScheme.secondary.withOpacity(0.9),
+                  theme.colorScheme.primary.withOpacity(0.7),
                 ],
-              ),
-            ),
-            child: CircleAvatar(
-              backgroundColor: Colors.transparent,
-              child: const Icon(
-                Icons.psychology_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-                bottomLeft: Radius.circular(4),
-                bottomRight: Radius.circular(20),
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 4,
+                  color: theme.colorScheme.secondary.withOpacity(0.2),
+                  blurRadius: 8,
                   offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.spa_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Calming bubble container
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  theme.colorScheme.surfaceContainerHighest,
+                  theme.colorScheme.surfaceContainerHighest.withOpacity(0.9),
+                ],
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(22),
+                topRight: Radius.circular(22),
+                bottomLeft: Radius.circular(6),
+                bottomRight: Radius.circular(22),
+              ),
+              border: Border.all(
+                color: theme.colorScheme.outline.withOpacity(0.06),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: theme.colorScheme.shadow.withOpacity(0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
