@@ -312,50 +312,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
-  Future<void> _endSession() async {
-    final sessionId = ref.read(currentSessionIdProvider);
-    if (sessionId == null) return;
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('End Conversation'),
-            content: const Text(
-              'Are you sure you want to end this conversation?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('End'),
-              ),
-            ],
-          ),
-    );
-
-    if (confirm == true) {
-      try {
-        await ref
-            .read(chatNotifierProvider.notifier)
-            .endChatSession(sessionId: sessionId);
-        ref.read(currentSessionIdProvider.notifier).state = null;
-        if (mounted) {
-          context.pop();
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error ending session: $e')));
-        }
-      }
-    }
-  }
-
   /// Start a new chat session (UI action)
   Future<void> _startNewSession() async {
     final userId = ref.read(currentUserIdProvider);
@@ -376,9 +332,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       ref.read(currentSessionIdProvider.notifier).state = sessionId;
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error creating chat: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error creating chat: $e')));
       }
     }
   }
@@ -490,29 +446,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      children: grouped.entries.map((entry) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
-              child: Text(
-                entry.key,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.5),
-                  fontWeight: FontWeight.w600,
+      children:
+          grouped.entries.map((entry) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
+                  child: Text(
+                    entry.key,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            ...entry.value.map((session) => _buildSessionTile(theme, session)),
-          ],
-        );
-      }).toList(),
+                ...entry.value.map(
+                  (session) => _buildSessionTile(theme, session),
+                ),
+              ],
+            );
+          }).toList(),
     );
   }
 
   /// Group sessions by date
-  Map<String, List<ChatSession>> _groupSessionsByDate(List<ChatSession> sessions) {
+  Map<String, List<ChatSession>> _groupSessionsByDate(
+    List<ChatSession> sessions,
+  ) {
     final Map<String, List<ChatSession>> grouped = {};
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -520,7 +481,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     for (final session in sessions) {
       final sessionDate = session.lastMessageAt ?? session.startedAt;
-      final dateOnly = DateTime(sessionDate.year, sessionDate.month, sessionDate.day);
+      final dateOnly = DateTime(
+        sessionDate.year,
+        sessionDate.month,
+        sessionDate.day,
+      );
 
       String label;
       if (dateOnly == today) {
@@ -559,17 +524,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: isSelected
-                ? theme.colorScheme.primary.withOpacity(0.2)
-                : theme.colorScheme.surfaceContainerHighest,
+            color:
+                isSelected
+                    ? theme.colorScheme.primary.withOpacity(0.2)
+                    : theme.colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
             Icons.chat_bubble_outline_rounded,
             size: 18,
-            color: isSelected
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurface.withOpacity(0.6),
+            color:
+                isSelected
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurface.withOpacity(0.6),
           ),
         ),
         title: Text(
@@ -715,35 +682,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ),
         actions: [
           Container(
-            margin: const EdgeInsets.only(right: 4),
+            margin: const EdgeInsets.only(right: 12),
             decoration: BoxDecoration(
               color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
               icon: Icon(
-                Icons.add_comment_rounded,
+                Icons.edit_square,
                 color: theme.colorScheme.primary,
                 size: 22,
               ),
               onPressed: () => _startNewSession(),
               tooltip: 'New Chat',
-            ),
-          ),
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.errorContainer.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              icon: Icon(
-                Icons.logout_rounded,
-                color: theme.colorScheme.error.withOpacity(0.8),
-                size: 22,
-              ),
-              onPressed: _endSession,
-              tooltip: 'End Conversation',
             ),
           ),
         ],
@@ -794,8 +745,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     colors: [
-                                      theme.colorScheme.primaryContainer.withOpacity(0.4),
-                                      theme.colorScheme.secondaryContainer.withOpacity(0.3),
+                                      theme.colorScheme.primaryContainer
+                                          .withOpacity(0.4),
+                                      theme.colorScheme.secondaryContainer
+                                          .withOpacity(0.3),
                                     ],
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
@@ -803,7 +756,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: theme.colorScheme.primary.withOpacity(0.08),
+                                      color: theme.colorScheme.primary
+                                          .withOpacity(0.08),
                                       blurRadius: 40,
                                       spreadRadius: 10,
                                     ),
@@ -812,7 +766,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 child: Icon(
                                   Icons.spa_rounded,
                                   size: 56,
-                                  color: theme.colorScheme.primary.withOpacity(0.7),
+                                  color: theme.colorScheme.primary.withOpacity(
+                                    0.7,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 32),
@@ -830,7 +786,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 'Take a deep breath. Share what\'s on your mind\nwhenever you\'re ready. I\'m here to listen.',
                                 textAlign: TextAlign.center,
                                 style: theme.textTheme.bodyLarge?.copyWith(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                  color: theme.colorScheme.onSurface
+                                      .withOpacity(0.6),
                                   height: 1.6,
                                 ),
                               ),
@@ -841,7 +798,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 runSpacing: 8,
                                 alignment: WrapAlignment.center,
                                 children: [
-                                  _buildSuggestionChip('How are you feeling?', theme),
+                                  _buildSuggestionChip(
+                                    'How are you feeling?',
+                                    theme,
+                                  ),
                                   _buildSuggestionChip('I need to talk', theme),
                                   _buildSuggestionChip('Help me relax', theme),
                                 ],
@@ -923,10 +883,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         Expanded(
                           child: Container(
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                              color: theme.colorScheme.surfaceContainerHighest
+                                  .withOpacity(0.5),
                               borderRadius: BorderRadius.circular(24),
                               border: Border.all(
-                                color: theme.colorScheme.outline.withOpacity(0.08),
+                                color: theme.colorScheme.outline.withOpacity(
+                                  0.08,
+                                ),
                                 width: 1,
                               ),
                             ),
@@ -939,7 +902,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               decoration: InputDecoration(
                                 hintText: 'Share your thoughts...',
                                 hintStyle: theme.textTheme.bodyLarge?.copyWith(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.4),
+                                  color: theme.colorScheme.onSurface
+                                      .withOpacity(0.4),
                                 ),
                                 border: InputBorder.none,
                                 contentPadding: const EdgeInsets.symmetric(
@@ -969,7 +933,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: theme.colorScheme.primary.withOpacity(0.25),
+                                color: theme.colorScheme.primary.withOpacity(
+                                  0.25,
+                                ),
                                 blurRadius: 12,
                                 offset: const Offset(0, 4),
                               ),
@@ -1183,7 +1149,9 @@ class _MessageBubble extends ConsumerWidget {
                                   ? LinearGradient(
                                     colors: [
                                       theme.colorScheme.primary,
-                                      theme.colorScheme.primary.withOpacity(0.85),
+                                      theme.colorScheme.primary.withOpacity(
+                                        0.85,
+                                      ),
                                     ],
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
@@ -1191,7 +1159,8 @@ class _MessageBubble extends ConsumerWidget {
                                   : LinearGradient(
                                     colors: [
                                       theme.colorScheme.surfaceContainerHighest,
-                                      theme.colorScheme.surfaceContainerHighest.withOpacity(0.9),
+                                      theme.colorScheme.surfaceContainerHighest
+                                          .withOpacity(0.9),
                                     ],
                                   ),
                           borderRadius: BorderRadius.only(
@@ -1200,15 +1169,24 @@ class _MessageBubble extends ConsumerWidget {
                             bottomLeft: Radius.circular(isUser ? 22 : 6),
                             bottomRight: Radius.circular(isUser ? 6 : 22),
                           ),
-                          border: isUser ? null : Border.all(
-                            color: theme.colorScheme.outline.withOpacity(0.06),
-                            width: 1,
-                          ),
+                          border:
+                              isUser
+                                  ? null
+                                  : Border.all(
+                                    color: theme.colorScheme.outline
+                                        .withOpacity(0.06),
+                                    width: 1,
+                                  ),
                           boxShadow: [
                             BoxShadow(
-                              color: isUser
-                                  ? theme.colorScheme.primary.withOpacity(0.12)
-                                  : theme.colorScheme.shadow.withOpacity(0.04),
+                              color:
+                                  isUser
+                                      ? theme.colorScheme.primary.withOpacity(
+                                        0.12,
+                                      )
+                                      : theme.colorScheme.shadow.withOpacity(
+                                        0.04,
+                                      ),
                               blurRadius: 12,
                               offset: const Offset(0, 3),
                             ),
@@ -1492,11 +1470,7 @@ class _TypingIndicatorBubble extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Icon(
-              Icons.spa_rounded,
-              color: Colors.white,
-              size: 18,
-            ),
+            child: const Icon(Icons.spa_rounded, color: Colors.white, size: 18),
           ),
           const SizedBox(width: 10),
           // Calming bubble container
