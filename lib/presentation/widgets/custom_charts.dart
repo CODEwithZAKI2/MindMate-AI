@@ -156,46 +156,56 @@ class MoodStreakCalendar extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-        SizedBox(
-          height: 120,
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              crossAxisSpacing: 6,
-              mainAxisSpacing: 6,
-              childAspectRatio: 1,
-            ),
-            itemCount: days,
-            itemBuilder: (context, index) {
-              final date = startDate.add(Duration(days: index));
-              final hasLog = moodDateSet.contains(DateUtils.dateOnly(date));
-              final isToday = DateUtils.isSameDay(date, now);
+          // Calculate rows needed: 30 days / 7 columns = 5 rows (rounded up)
+          // Each cell is square, spacing is 6px
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cellSize = (constraints.maxWidth - (6 * 6)) / 7; // 7 columns, 6 gaps
+              final rows = (days / 7).ceil();
+              final gridHeight = (cellSize * rows) + (6 * (rows - 1)); // cells + gaps
+              
+              return SizedBox(
+                height: gridHeight,
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    crossAxisSpacing: 6,
+                    mainAxisSpacing: 6,
+                    childAspectRatio: 1,
+                  ),
+                  itemCount: days,
+                  itemBuilder: (context, index) {
+                    final date = startDate.add(Duration(days: index));
+                    final hasLog = moodDateSet.contains(DateUtils.dateOnly(date));
+                    final isToday = DateUtils.isSameDay(date, now);
 
-              return Container(
-                decoration: BoxDecoration(
-                  color: hasLog
-                      ? theme.colorScheme.tertiary.withOpacity(0.7)
-                      : theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(6),
-                  border: isToday
-                      ? Border.all(color: theme.colorScheme.primary, width: 2)
-                      : null,
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: hasLog
+                            ? theme.colorScheme.tertiary.withOpacity(0.7)
+                            : theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                        border: isToday
+                            ? Border.all(color: theme.colorScheme.primary, width: 2)
+                            : null,
+                      ),
+                      child: hasLog
+                          ? Center(
+                              child: Icon(
+                                Icons.check_rounded,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                            )
+                          : null,
+                    );
+                  },
                 ),
-                child: hasLog
-                    ? Center(
-                        child: Icon(
-                          Icons.check,
-                          size: 12,
-                          color: Colors.white,
-                        ),
-                      )
-                    : null,
               );
             },
           ),
-        ),
         const SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
