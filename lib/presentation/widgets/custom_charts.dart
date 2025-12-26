@@ -144,16 +144,18 @@ class MoodStreakCalendar extends StatelessWidget {
     // Create a Set for quick lookup
     final moodDateSet = moodDates.map((d) => DateUtils.dateOnly(d)).toSet();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$days-Day Streak',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$days-Day Streak',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
+          const SizedBox(height: 12),
         SizedBox(
           height: 120,
           child: GridView.builder(
@@ -209,6 +211,7 @@ class MoodStreakCalendar extends StatelessWidget {
           ],
         ),
       ],
+      ),
     );
   }
 }
@@ -425,17 +428,19 @@ class MoodDistributionChart extends StatelessWidget {
       1: '😢 Very Bad',
     };
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Mood Distribution',
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w700,
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Mood Distribution',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Row(
+          const SizedBox(height: 16),
+          Row(
           children: [
             // Donut chart
             SizedBox(
@@ -493,7 +498,8 @@ class MoodDistributionChart extends StatelessWidget {
             ),
           ],
         ),
-      ],
+        ],
+      ),
     );
   }
 }
