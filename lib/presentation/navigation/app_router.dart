@@ -17,30 +17,28 @@ import './main_shell.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/settings/privacy_policy_screen.dart';
 import '../screens/settings/terms_of_service_screen.dart';
+import '../screens/settings/notification_settings_screen.dart';
 
 // Placeholder screens for features not yet implemented
 class MoodScreen extends StatelessWidget {
   const MoodScreen({super.key});
   @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Mood - Coming Soon')),
-      );
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: Text('Mood - Coming Soon')));
 }
 
 class InsightsScreen extends StatelessWidget {
   const InsightsScreen({super.key});
   @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Insights - Coming Soon')),
-      );
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: Text('Insights - Coming Soon')));
 }
 
 class ExercisesScreen extends StatelessWidget {
   const ExercisesScreen({super.key});
   @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: Text('Exercises - Coming Soon')),
-      );
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: Text('Exercises - Coming Soon')));
 }
 
 /// Router provider with auth state integration
@@ -80,14 +78,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SignUpScreen(),
       ),
 
-      // Main App Routes - Now using MainShell with bottom nav
+      // Main App Routes - MainShell manages its own bottom nav screens
       GoRoute(
         path: Routes.home,
         name: 'home',
         builder: (context, state) => const MainShell(),
       ),
-      
-      // Chat routes
+
+      // Chat routes (standalone)
       GoRoute(
         path: Routes.chat,
         name: 'chat',
@@ -98,32 +96,33 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'chatHistory',
         builder: (context, state) => const ChatHistoryScreen(),
       ),
-      
-      // Mood routes
+
+      // Insights/Mood History Dashboard
+      GoRoute(
+        path: Routes.insights,
+        name: 'insights',
+        builder: (context, state) => const MoodHistoryDashboardScreen(),
+      ),
+
+      // Mood Check-in (outside shell - no bottom nav)
       GoRoute(
         path: Routes.moodCheckIn,
         name: 'moodCheckIn',
         builder: (context, state) => const MoodCheckInScreen(),
       ),
-      GoRoute(
-        path: Routes.moodHistory,
-        name: 'moodHistory',
-        builder: (context, state) => const MoodHistoryDashboardScreen(),
-      ),
-      GoRoute(
-        path: Routes.insights,
-        name: 'insights',
-        builder: (context, state) => const InsightsScreen(),
-      ),
-      GoRoute(
-        path: Routes.exercises,
-        name: 'exercises',
-        builder: (context, state) => const ExercisesScreen(),
-      ),
+
+      // Settings (outside shell)
       GoRoute(
         path: Routes.settings,
         name: 'settings',
         builder: (context, state) => const SettingsScreen(),
+      ),
+
+      // Settings Sub-routes
+      GoRoute(
+        path: Routes.notifications,
+        name: 'notifications',
+        builder: (context, state) => const NotificationSettingsScreen(),
       ),
       GoRoute(
         path: Routes.privacy,
@@ -138,23 +137,24 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
 
     // Error page
-    errorBuilder: (context, state) => Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.red),
-            const SizedBox(height: 16),
-            Text('Page not found: ${state.matchedLocation}'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => context.go(Routes.home),
-              child: const Text('Go Home'),
+    errorBuilder:
+        (context, state) => Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('Page not found: ${state.matchedLocation}'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => context.go(Routes.home),
+                  child: const Text('Go Home'),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
-    ),
 
     // Redirect logic based on auth state
     redirect: (context, state) {
@@ -162,12 +162,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isAuthenticated = authState.hasValue && authState.value != null;
       final user = authState.value;
 
-        const disclaimerReminderDays = 180;
-        final needsDisclaimerReminder = user?.disclaimerAcceptedAt != null &&
-          DateTime.now()
-              .difference(user!.disclaimerAcceptedAt!)
-              .inDays >=
-            disclaimerReminderDays;
+      const disclaimerReminderDays = 180;
+      final needsDisclaimerReminder =
+          user?.disclaimerAcceptedAt != null &&
+          DateTime.now().difference(user!.disclaimerAcceptedAt!).inDays >=
+              disclaimerReminderDays;
 
       final currentPath = state.matchedLocation;
 
@@ -177,7 +176,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       // Auth pages (can access when not authenticated)
-      final isOnAuthPage = currentPath.startsWith('/signin') ||
+      final isOnAuthPage =
+          currentPath.startsWith('/signin') ||
           currentPath.startsWith('/signup') ||
           currentPath == Routes.onboarding;
 
@@ -206,7 +206,9 @@ final routerProvider = Provider<GoRouter>((ref) {
 
         // Force disclaimer if not accepted
         if (user.onboardingComplete &&
-            (!user.ageVerified || user.disclaimerAcceptedAt == null || needsDisclaimerReminder) &&
+            (!user.ageVerified ||
+                user.disclaimerAcceptedAt == null ||
+                needsDisclaimerReminder) &&
             currentPath != Routes.disclaimer) {
           return Routes.disclaimer;
         }

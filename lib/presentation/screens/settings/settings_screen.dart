@@ -74,13 +74,7 @@ class SettingsScreen extends ConsumerWidget {
                       icon: Icons.notifications_outlined,
                       title: 'Notifications',
                       trailing: _buildChevron(theme),
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Notifications settings coming soon'),
-                          ),
-                        );
-                      },
+                      onTap: () => context.push(Routes.notifications),
                     ),
                     _SettingsItem(
                       icon: Icons.language_outlined,

@@ -96,9 +96,9 @@
 ### Medium Priority (Post-MVP)
 
 #### Notifications
-- [ ] Daily mood check-in reminders
-- [ ] Streak reminders
-- [ ] Configurable notification preferences
+- [x] Daily mood check-in reminders *(Implemented: Dec 27, 2025)*
+- [x] Streak reminders *(Implemented: Dec 27, 2025)*
+- [x] Configurable notification preferences *(Implemented: Dec 27, 2025)*
 
 #### Onboarding Enhancements
 - [ ] Initial mood collection during signup

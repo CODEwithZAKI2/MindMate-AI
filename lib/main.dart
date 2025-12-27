@@ -3,11 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tzlib;
 import 'app.dart';
+import 'core/services/notification_service.dart';
 import 'core/utils/logger.dart';
 import 'firebase_options.dart';
+import 'presentation/providers/notification_provider.dart';
 
 void main() async {
   // Ensure Flutter binding is initialized
@@ -35,16 +38,25 @@ void main() async {
   }
 
   // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   AppLogger.info('✅ Firebase initialized');
-  // TODO: Initialize other services (secure storage, notifications, etc.)
 
-  // Run app with Riverpod
+  // Initialize SharedPreferences
+  final sharedPreferences = await SharedPreferences.getInstance();
+  AppLogger.info('✅ SharedPreferences initialized');
+
+  // Initialize Notification Service
+  final notificationService = NotificationService();
+  await notificationService.initialize();
+  AppLogger.info('✅ NotificationService initialized');
+
+  // Run app with Riverpod and provider overrides
   runApp(
-    const ProviderScope(
-      child: MindMateApp(),
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+      ],
+      child: const MindMateApp(),
     ),
   );
 
