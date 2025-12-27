@@ -91,19 +91,21 @@
 
 ## ❌ NOT YET IMPLEMENTED
 
-### High Priority (MVP Required)
+
 
 ### Medium Priority (Post-MVP)
+
+#### Notifications
+- [ ] Daily mood check-in reminders
+- [ ] Streak reminders
+- [ ] Configurable notification preferences
 
 #### Onboarding Enhancements
 - [ ] Initial mood collection during signup
 - [ ] Feature tour after onboarding
 - [ ] Personalized first AI interaction
 
-#### Notifications
-- [ ] Daily mood check-in reminders
-- [ ] Streak reminders
-- [ ] Configurable notification preferences
+
 
 #### Advanced Analytics
 - [ ] 90-day mood trends
