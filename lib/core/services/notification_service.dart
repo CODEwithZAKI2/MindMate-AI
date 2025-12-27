@@ -257,4 +257,66 @@ class NotificationService {
       details,
     );
   }
+
+  /// Schedule a test notification in 10 seconds (for testing scheduled alarms)
+  Future<void> showScheduledTestNotification() async {
+    // Request exact alarm permission on Android 12+
+    final androidPlugin =
+        _notifications
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
+
+    if (androidPlugin != null) {
+      // Check and request exact alarm permission
+      final exactAlarmPermitted =
+          await androidPlugin.requestExactAlarmsPermission();
+      AppLogger.info('⏰ Exact alarm permission: $exactAlarmPermitted');
+    }
+
+    final scheduledTime = tz.TZDateTime.now(
+      tz.local,
+    ).add(const Duration(seconds: 10));
+
+    const androidDetails = AndroidNotificationDetails(
+      'scheduled_test',
+      'Scheduled Test',
+      channelDescription: 'For testing scheduled notifications',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+    );
+
+    const details = NotificationDetails(android: androidDetails);
+
+    await _notifications.zonedSchedule(
+      998,
+      'Scheduled Test Success! 🎯',
+      'This notification was scheduled 10 seconds ago.',
+      scheduledTime,
+      details,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      payload: 'scheduled_test',
+    );
+
+    AppLogger.info('📅 Scheduled test notification for: $scheduledTime');
+  }
+
+  /// Request exact alarm permission (Android 12+)
+  Future<bool> requestExactAlarmPermission() async {
+    final androidPlugin =
+        _notifications
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
+
+    if (androidPlugin != null) {
+      final granted = await androidPlugin.requestExactAlarmsPermission();
+      AppLogger.info('⏰ Exact alarm permission granted: $granted');
+      return granted ?? false;
+    }
+    return true; // Non-Android platforms don't need this
+  }
 }

@@ -146,22 +146,44 @@ class NotificationSettingsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 32),
 
-              // Test notification button
+              // Test notification buttons
               Center(
-                child: TextButton.icon(
-                  onPressed: () async {
-                    await notifier.showTestNotification();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Test notification sent!'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.send_rounded),
-                  label: const Text('Send Test Notification'),
+                child: Column(
+                  children: [
+                    TextButton.icon(
+                      onPressed: () async {
+                        await notifier.showTestNotification();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Instant notification sent!'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.send_rounded),
+                      label: const Text('Send Instant Test'),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: () async {
+                        await notifier.showScheduledTestNotification();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Scheduled notification will arrive in 10 seconds!',
+                              ),
+                              duration: Duration(seconds: 3),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.schedule_send_rounded),
+                      label: const Text('Send Scheduled Test (10 sec)'),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 24),

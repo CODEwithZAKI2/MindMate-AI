@@ -61,9 +61,14 @@ class NotificationSettingsNotifier extends StateNotifier<NotificationSettings> {
     return await _service.requestPermissions();
   }
 
-  /// Show test notification
+  /// Show test notification (immediate)
   Future<void> showTestNotification() async {
     await _service.showTestNotification();
+  }
+
+  /// Show scheduled test notification (10 seconds)
+  Future<void> showScheduledTestNotification() async {
+    await _service.showScheduledTestNotification();
   }
 }
 
