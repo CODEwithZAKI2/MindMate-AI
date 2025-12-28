@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/chat/chat_screen.dart';
 import '../screens/mood/mood_history_dashboard_screen.dart';
+import '../screens/journal/journal_screen.dart';
 import '../screens/settings/settings_screen.dart';
 
 /// Main shell with stunning bottom navigation
@@ -30,6 +31,11 @@ class _MainShellState extends ConsumerState<MainShell>
       label: 'Chat',
     ),
     _NavItem(
+      icon: Icons.book_outlined,
+      activeIcon: Icons.book_rounded,
+      label: 'Journal',
+    ),
+    _NavItem(
       icon: Icons.insights_outlined,
       activeIcon: Icons.insights_rounded,
       label: 'Mood',
@@ -44,6 +50,7 @@ class _MainShellState extends ConsumerState<MainShell>
   final List<Widget> _screens = [
     const HomeScreen(),
     const ChatScreen(),
+    const JournalScreen(),
     const MoodHistoryDashboardScreen(),
     const SettingsScreen(),
   ];
@@ -100,37 +107,35 @@ class _MainShellState extends ConsumerState<MainShell>
         }
       },
       child: Scaffold(
-        body: IndexedStack(
-          index: _currentIndex,
-          children: _screens,
-        ),
+        body: IndexedStack(index: _currentIndex, children: _screens),
         // Hide bottom nav when on Chat screen (index 1)
-        bottomNavigationBar: _currentIndex == 1
-            ? null
-            : Container(
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.colorScheme.shadow.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: SafeArea(
-                  child: Container(
-                    height: 64,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: List.generate(_navItems.length, (index) {
-                        return _buildNavItem(index, theme);
-                      }),
+        bottomNavigationBar:
+            _currentIndex == 1
+                ? null
+                : Container(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.colorScheme.shadow.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
+                  ),
+                  child: SafeArea(
+                    child: Container(
+                      height: 64,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: List.generate(_navItems.length, (index) {
+                          return _buildNavItem(index, theme);
+                        }),
+                      ),
                     ),
                   ),
                 ),
-              ),
       ),
     );
   }
@@ -202,9 +207,5 @@ class _NavItem {
   final IconData activeIcon;
   final String label;
 
-  _NavItem({
-    required this.icon,
-    required this.activeIcon,
-    required this.label,
-  });
+  _NavItem({required this.icon, required this.activeIcon, required this.label});
 }

@@ -18,6 +18,8 @@ class Routes {
   static const String insights = '/insights';
   static const String exercises = '/exercises';
   static const String settings = '/settings';
+  static const String journal = '/journal';
+  static const String journalEntry = '/journal/entry';
 
   // Nested Routes
   static const String moodHistory = '/mood/history';

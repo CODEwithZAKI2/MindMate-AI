@@ -1,6 +1,6 @@
 # MindMate AI - Development Tasks
 
-> **Last Updated:** December 23, 2025  
+> **Last Updated:** December 28, 2025  
 > **MVP Target:** February 11, 2026
 
 ---
@@ -94,11 +94,30 @@
 - [x] Android scheduled notification permissions (SCHEDULE_EXACT_ALARM, etc.)
 - [x] ProGuard/R8 configuration for notifications
 
+### UI/UX Enhancements
+- [x] Award-winning onboarding screen design (animated gradients, large illustrations)
+- [x] Premium sign-in/sign-up screens
+- [x] App icon redesign (spa/wellness theme)
+- [x] App name update (MindMate AI)
+
+### AI Journaling System
+- [x] Journal entry entity and data model
+- [x] Journal repository with Firestore (CRUD, search, favorites, stats)
+- [x] AI-generated daily prompts (placeholder prompts, ready for AI integration)
+- [x] Journal entry screen (create/edit with mood & tags)
+- [x] Journal history screen with search
+- [x] Link journal entries to mood check-ins
+- [x] Firestore security rules for journal_entries
+- [x] Journal tab in bottom navigation
+
 ---
 
 ## ❌ NOT YET IMPLEMENTED
 
+### High Priority (MVP Completion)
 
+#### Authentication Enhancements
+- [ ] Apple Sign-In integration
 
 ### Medium Priority (Post-MVP)
 
@@ -107,27 +126,35 @@
 - [ ] Feature tour after onboarding
 - [ ] Personalized first AI interaction
 
-
-
 #### Advanced Analytics
 - [ ] 90-day mood trends
 - [ ] Trigger identification/correlation
 - [ ] Weekly insight reports
 - [ ] Mood-session linking (mood at start/end of chat)
 
+#### Engagement Features
+- [ ] Streak & gamification system
+- [ ] Wellness achievements/badges
+- [ ] Daily challenges
+
 ### Low Priority (Future)
 
 #### Premium Features
-- [ ] Guided breathing exercises
+- [ ] Guided breathing exercises with animations
 - [ ] CBT worksheets
 - [ ] Meditation content
-- [ ] AI-generated journal prompts
+- [ ] Premium subscription (RevenueCat integration)
 
 #### Technical Improvements
 - [ ] Firebase Analytics integration
 - [ ] Crashlytics integration
 - [ ] CI/CD pipeline
 - [ ] Unit test coverage expansion
+- [ ] Dark mode polish
+
+#### Localization
+- [ ] Multi-language support (Spanish, French, German)
+- [ ] Therapist finder directory
 
 ---
 

@@ -18,6 +18,8 @@ import '../screens/settings/settings_screen.dart';
 import '../screens/settings/privacy_policy_screen.dart';
 import '../screens/settings/terms_of_service_screen.dart';
 import '../screens/settings/notification_settings_screen.dart';
+import '../screens/journal/journal_screen.dart';
+import '../screens/journal/journal_entry_screen.dart';
 
 // Placeholder screens for features not yet implemented
 class MoodScreen extends StatelessWidget {
@@ -133,6 +135,25 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: Routes.terms,
         name: 'terms',
         builder: (context, state) => const TermsOfServiceScreen(),
+      ),
+
+      // Journal routes
+      GoRoute(
+        path: Routes.journal,
+        name: 'journal',
+        builder: (context, state) => const JournalScreen(),
+      ),
+      GoRoute(
+        path: Routes.journalEntry,
+        name: 'journalEntry',
+        builder: (context, state) => const JournalEntryScreen(),
+      ),
+      GoRoute(
+        path: '${Routes.journalEntry}/:entryId',
+        name: 'journalEntryEdit',
+        builder:
+            (context, state) =>
+                JournalEntryScreen(entryId: state.pathParameters['entryId']),
       ),
     ],
 
