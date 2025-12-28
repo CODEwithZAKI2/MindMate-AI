@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/routes.dart';
 import '../../../core/constants/assets.dart';
 
-
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -100,9 +99,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   _buildPage(
                     theme: theme,
                     illustration: Image.asset(
-                      AppAssets.authWelcome,
-                      width: 240,
-                      height: 240,
+                      AppAssets.onboarding3,
+                      width: 280,
+                      height: 280,
                       fit: BoxFit.contain,
                     ),
                     title: 'Grow with Support',
@@ -194,25 +193,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       height: 10,
       width: isActive ? 32 : 10,
       decoration: BoxDecoration(
-        gradient: isActive
-            ? LinearGradient(
-                colors: [
-                  theme.colorScheme.primary,
-                  theme.colorScheme.primary.withOpacity(0.7),
-                ],
-              )
-            : null,
+        gradient:
+            isActive
+                ? LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.primary.withOpacity(0.7),
+                  ],
+                )
+                : null,
         color: isActive ? null : theme.colorScheme.primary.withOpacity(0.2),
         borderRadius: BorderRadius.circular(5),
-        boxShadow: isActive
-            ? [
-                BoxShadow(
-                  color: theme.colorScheme.primary.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null,
+        boxShadow:
+            isActive
+                ? [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+                : null,
       ),
     );
   }
