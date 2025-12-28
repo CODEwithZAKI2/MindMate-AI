@@ -87,6 +87,13 @@
 - [x] Offline message queue (enqueue when offline, auto-send on reconnect)
 - [x] Network error handling with retry
 
+### Notifications
+- [x] Daily mood check-in reminders
+- [x] Streak reminders
+- [x] Configurable notification preferences
+- [x] Android scheduled notification permissions (SCHEDULE_EXACT_ALARM, etc.)
+- [x] ProGuard/R8 configuration for notifications
+
 ---
 
 ## ❌ NOT YET IMPLEMENTED
@@ -94,11 +101,6 @@
 
 
 ### Medium Priority (Post-MVP)
-
-#### Notifications
-- [x] Daily mood check-in reminders *(Implemented: Dec 27, 2025)*
-- [x] Streak reminders *(Implemented: Dec 27, 2025)*
-- [x] Configurable notification preferences *(Implemented: Dec 27, 2025)*
 
 #### Onboarding Enhancements
 - [ ] Initial mood collection during signup
