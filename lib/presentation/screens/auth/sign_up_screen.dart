@@ -37,7 +37,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await ref.read(authNotifierProvider.notifier).signUpWithEmail(
+      await ref
+          .read(authNotifierProvider.notifier)
+          .signUpWithEmail(
             email: _emailController.text.trim(),
             password: _passwordController.text,
             displayName: _nameController.text.trim(),
@@ -109,29 +111,29 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [
-              theme.colorScheme.primaryContainer.withOpacity(0.1),
-              theme.colorScheme.secondaryContainer.withOpacity(0.05),
+              const Color(0xFFE0F7FA).withOpacity(0.8),
+              const Color(0xFFB2EBF2).withOpacity(0.4),
+              Colors.white,
               Colors.white,
             ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            stops: const [0.0, 0.2, 0.5, 1.0],
           ),
         ),
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.all(28.0),
               child: Form(
                 key: _formKey,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Welcoming Illustration
-                    const WelcomeIllustration(size: 200),
-                    const SizedBox(height: 32),
-                    
+                    const SizedBox(height: 40),
+
                     // Welcome text
                     Text(
                       'Create Account',
@@ -150,7 +152,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       ),
                     ),
                     const SizedBox(height: 48),
-                    
+
                     // Name field
                     TextFormField(
                       controller: _nameController,
@@ -164,7 +166,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           color: theme.colorScheme.primary,
                         ),
                         filled: true,
-                        fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                        fillColor: theme.colorScheme.surfaceContainerHighest
+                            .withOpacity(0.5),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
                           borderSide: BorderSide.none,
@@ -195,7 +198,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       enabled: !_isLoading,
                     ),
                     const SizedBox(height: 20),
-                    
+
                     // Email field
                     TextFormField(
                       controller: _emailController,
@@ -208,7 +211,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           color: theme.colorScheme.primary,
                         ),
                         filled: true,
-                        fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                        fillColor: theme.colorScheme.surfaceContainerHighest
+                            .withOpacity(0.5),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
                           borderSide: BorderSide.none,
@@ -239,7 +243,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       enabled: !_isLoading,
                     ),
                     const SizedBox(height: 20),
-                    
+
                     // Password field
                     TextFormField(
                       controller: _passwordController,
@@ -263,11 +267,14 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             ),
                           ),
                           onPressed: () {
-                            setState(() => _obscurePassword = !_obscurePassword);
+                            setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            );
                           },
                         ),
                         filled: true,
-                        fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                        fillColor: theme.colorScheme.surfaceContainerHighest
+                            .withOpacity(0.5),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
                           borderSide: BorderSide.none,
@@ -298,7 +305,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       enabled: !_isLoading,
                     ),
                     const SizedBox(height: 20),
-                    
+
                     // Confirm password field
                     TextFormField(
                       controller: _confirmPasswordController,
@@ -321,12 +328,16 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             ),
                           ),
                           onPressed: () {
-                            setState(() =>
-                                _obscureConfirmPassword = !_obscureConfirmPassword);
+                            setState(
+                              () =>
+                                  _obscureConfirmPassword =
+                                      !_obscureConfirmPassword,
+                            );
                           },
                         ),
                         filled: true,
-                        fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                        fillColor: theme.colorScheme.surfaceContainerHighest
+                            .withOpacity(0.5),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
                           borderSide: BorderSide.none,
@@ -357,7 +368,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       enabled: !_isLoading,
                     ),
                     const SizedBox(height: 32),
-                    
+
                     // Sign up button
                     SizedBox(
                       height: 56,
@@ -369,27 +380,29 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           ),
                           elevation: 2,
                         ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 24,
-                                width: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor:
-                                      AlwaysStoppedAnimation<Color>(Colors.white),
+                        child:
+                            _isLoading
+                                ? const SizedBox(
+                                  height: 24,
+                                  width: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                                : const Text(
+                                  'Sign Up',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                              )
-                            : const Text(
-                                'Sign Up',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
                       ),
                     ),
                     const SizedBox(height: 32),
-                    
+
                     // Divider
                     Row(
                       children: [
@@ -399,7 +412,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           child: Text(
                             'OR',
                             style: theme.textTheme.labelLarge?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(0.5),
+                              color: theme.colorScheme.onSurface.withOpacity(
+                                0.5,
+                              ),
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -408,14 +423,14 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       ],
                     ),
                     const SizedBox(height: 32),
-                    
+
                     // Google sign up button
                     GoogleSignInButton(
                       onPressed: _signUpWithGoogle,
                       isLoading: _isLoading,
                     ),
                     const SizedBox(height: 32),
-                    
+
                     // Sign in link
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -437,7 +452,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Terms and privacy
                     Text(
                       'By signing up, you agree to our Terms of Service and Privacy Policy',
