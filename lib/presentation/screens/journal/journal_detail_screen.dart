@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../domain/entities/journal_entry.dart';
 import '../../../core/constants/routes.dart';
+import '../../../data/services/biometric_auth_service.dart';
 import '../../providers/journal_provider.dart';
 
 /// Journal Detail Screen - Read-only view with AI reflection
@@ -20,6 +21,8 @@ class JournalDetailScreen extends ConsumerStatefulWidget {
 class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
   JournalEntry? _entry;
   bool _isLoading = true;
+  bool _isUnlocked = false;
+  final BiometricAuthService _authService = BiometricAuthService();
 
   static const _primaryColor = Color(0xFF6366F1);
   static const _secondaryColor = Color(0xFF8B5CF6);
@@ -44,6 +47,21 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
       final entry = await ref
           .read(journalNotifierProvider.notifier)
           .getEntry(widget.entryId);
+
+      // Check if entry is locked and needs biometric auth
+      if (entry != null && entry.isLocked) {
+        final authenticated = await _authService.authenticate(
+          reason: 'Authenticate to view this locked entry',
+        );
+        if (!authenticated) {
+          if (mounted) context.pop();
+          return;
+        }
+        setState(() => _isUnlocked = true);
+      } else {
+        setState(() => _isUnlocked = true);
+      }
+
       setState(() {
         _entry = entry;
         _isLoading = false;

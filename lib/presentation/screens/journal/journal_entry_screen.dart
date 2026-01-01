@@ -27,9 +27,11 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
   int? _selectedMood;
   List<String> _selectedTags = [];
   bool _isFavorite = false;
+  bool _isLocked = false;
   bool _isLoading = false;
   bool _hasChanges = false;
   String? _promptText;
+  String? _voiceNotePath;
   JournalEntry? _existingEntry;
 
   // Calming colors
@@ -584,6 +586,18 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
             color: _isFavorite ? Colors.red.shade400 : Colors.grey.shade400,
           ),
           onPressed: () => setState(() => _isFavorite = !_isFavorite),
+        ),
+        IconButton(
+          icon: Icon(
+            _isLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
+            color: _isLocked ? _primaryColor : Colors.grey.shade400,
+          ),
+          onPressed:
+              () => setState(() {
+                _isLocked = !_isLocked;
+                _hasChanges = true;
+              }),
+          tooltip: _isLocked ? 'Entry locked' : 'Lock this entry',
         ),
         if (!isEditing)
           Container(
