@@ -19,6 +19,9 @@ import '../screens/settings/privacy_policy_screen.dart';
 import '../screens/settings/terms_of_service_screen.dart';
 import '../screens/settings/notification_settings_screen.dart';
 import '../screens/journal/journal_screen.dart';
+import '../screens/journal/journal_calendar_view.dart';
+import '../screens/journal/journal_insights_screen.dart';
+import '../screens/journal/journal_detail_screen.dart';
 import '../screens/journal/journal_entry_screen.dart';
 
 // Placeholder screens for features not yet implemented
@@ -144,9 +147,26 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const JournalScreen(),
       ),
       GoRoute(
+        path: Routes.journalCalendar,
+        name: 'journalCalendar',
+        builder: (context, state) => const JournalCalendarView(),
+      ),
+      GoRoute(
+        path: Routes.journalInsights,
+        name: 'journalInsights',
+        builder: (context, state) => const JournalInsightsScreen(),
+      ),
+      GoRoute(
         path: Routes.journalEntry,
         name: 'journalEntry',
         builder: (context, state) => const JournalEntryScreen(),
+      ),
+      GoRoute(
+        path: '${Routes.journalDetail}/:entryId',
+        name: 'journalDetail',
+        builder:
+            (context, state) =>
+                JournalDetailScreen(entryId: state.pathParameters['entryId']!),
       ),
       GoRoute(
         path: '${Routes.journalEntry}/:entryId',

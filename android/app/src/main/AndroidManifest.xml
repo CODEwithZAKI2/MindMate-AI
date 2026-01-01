@@ -7,6 +7,9 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     
+    <!-- Permission for voice recording -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    
     <application
         android:label="MindMate AI"
         android:name="${applicationName}"

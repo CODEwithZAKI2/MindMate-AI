@@ -1,38 +1,64 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/journal_entry_model.dart';
 import '../../domain/entities/journal_entry.dart';
+import '../models/journal_entry_model.dart';
 
-/// Repository for journal entry management
+/// Repository for Journal entries with full CRUD, search, and statistics
 class JournalRepository {
   final FirebaseFirestore _firestore;
+  static const String _collection = 'journal_entries';
 
   JournalRepository({FirebaseFirestore? firestore})
     : _firestore = firestore ?? FirebaseFirestore.instance;
 
+  CollectionReference<Map<String, dynamic>> get _entriesRef =>
+      _firestore.collection(_collection);
+
+  // ========== CRUD Operations ==========
+
   /// Create a new journal entry
-  Future<String> createJournalEntry(JournalEntry entry) async {
+  Future<String> createEntry(JournalEntry entry) async {
     final model = JournalEntryModel.fromEntity(entry);
-    final docRef = await _firestore
-        .collection('journal_entries')
-        .add(model.toFirestore());
+    final docRef = await _entriesRef.add(model.toFirestore());
     return docRef.id;
   }
 
-  /// Get journal entry by ID
-  Future<JournalEntry> getJournalEntry(String entryId) async {
-    final doc =
-        await _firestore.collection('journal_entries').doc(entryId).get();
-    if (!doc.exists) {
-      throw Exception('Journal entry not found');
-    }
+  /// Get a single journal entry by ID
+  Future<JournalEntry?> getEntry(String entryId) async {
+    final doc = await _entriesRef.doc(entryId).get();
+    if (!doc.exists) return null;
     return JournalEntryModel.fromFirestore(doc).toEntity();
   }
 
-  /// Get user journal entries stream (real-time)
-  Stream<List<JournalEntry>> getJournalEntriesStream(String userId) {
-    return _firestore
-        .collection('journal_entries')
+  /// Update an existing journal entry
+  Future<void> updateEntry(JournalEntry entry) async {
+    final model = JournalEntryModel.fromEntity(entry);
+    await _entriesRef.doc(entry.id).update(model.toFirestore());
+  }
+
+  /// Soft delete a journal entry (30-day recovery)
+  Future<void> deleteEntry(String entryId) async {
+    await _entriesRef.doc(entryId).update({
+      'deletedAt': Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
+  /// Permanently delete a journal entry
+  Future<void> permanentlyDelete(String entryId) async {
+    await _entriesRef.doc(entryId).delete();
+  }
+
+  /// Restore a soft-deleted entry
+  Future<void> restoreEntry(String entryId) async {
+    await _entriesRef.doc(entryId).update({'deletedAt': null});
+  }
+
+  // ========== Query Operations ==========
+
+  /// Get all entries for a user (real-time stream, excludes deleted)
+  Stream<List<JournalEntry>> getEntriesStream(String userId) {
+    return _entriesRef
         .where('userId', isEqualTo: userId)
+        .where('deletedAt', isNull: true)
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map(
@@ -43,31 +69,15 @@ class JournalRepository {
         );
   }
 
-  /// Get all journal entries for a user
-  Future<List<JournalEntry>> getAllJournalEntries({
-    required String userId,
-  }) async {
-    final snapshot =
-        await _firestore
-            .collection('journal_entries')
-            .where('userId', isEqualTo: userId)
-            .orderBy('createdAt', descending: true)
-            .get();
-
-    return snapshot.docs
-        .map((doc) => JournalEntryModel.fromFirestore(doc).toEntity())
-        .toList();
-  }
-
-  /// Get paginated journal entries
-  Future<List<JournalEntry>> getJournalEntries({
-    required String userId,
+  /// Get entries with pagination
+  Future<List<JournalEntry>> getEntriesPaginated(
+    String userId, {
     int limit = 20,
     DocumentSnapshot? startAfter,
   }) async {
-    Query query = _firestore
-        .collection('journal_entries')
+    var query = _entriesRef
         .where('userId', isEqualTo: userId)
+        .where('deletedAt', isNull: true)
         .orderBy('createdAt', descending: true)
         .limit(limit);
 
@@ -81,24 +91,21 @@ class JournalRepository {
         .toList();
   }
 
-  /// Get journal entries by date range
-  Future<List<JournalEntry>> getJournalEntriesByDateRange({
-    required String userId,
-    required DateTime startDate,
-    required DateTime endDate,
-  }) async {
+  /// Get entries by date range
+  Future<List<JournalEntry>> getEntriesByDateRange(
+    String userId,
+    DateTime start,
+    DateTime end,
+  ) async {
     final snapshot =
-        await _firestore
-            .collection('journal_entries')
+        await _entriesRef
             .where('userId', isEqualTo: userId)
+            .where('deletedAt', isNull: true)
             .where(
               'createdAt',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
+              isGreaterThanOrEqualTo: Timestamp.fromDate(start),
             )
-            .where(
-              'createdAt',
-              isLessThanOrEqualTo: Timestamp.fromDate(endDate),
-            )
+            .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
             .orderBy('createdAt', descending: true)
             .get();
 
@@ -107,30 +114,13 @@ class JournalRepository {
         .toList();
   }
 
-  /// Search journal entries by title or content
-  Future<List<JournalEntry>> searchJournalEntries({
-    required String userId,
-    required String query,
-  }) async {
-    // Firestore doesn't support full-text search, so we fetch all and filter locally
-    // For production, consider Algolia or ElasticSearch
-    final allEntries = await getAllJournalEntries(userId: userId);
-    final lowerQuery = query.toLowerCase();
-
-    return allEntries.where((entry) {
-      return entry.title.toLowerCase().contains(lowerQuery) ||
-          entry.content.toLowerCase().contains(lowerQuery) ||
-          entry.tags.any((tag) => tag.toLowerCase().contains(lowerQuery));
-    }).toList();
-  }
-
-  /// Get favorite journal entries
+  /// Get favorite entries
   Future<List<JournalEntry>> getFavoriteEntries(String userId) async {
     final snapshot =
-        await _firestore
-            .collection('journal_entries')
+        await _entriesRef
             .where('userId', isEqualTo: userId)
             .where('isFavorite', isEqualTo: true)
+            .where('deletedAt', isNull: true)
             .orderBy('createdAt', descending: true)
             .get();
 
@@ -139,118 +129,144 @@ class JournalRepository {
         .toList();
   }
 
-  /// Get recent journal entries (last 7 days)
-  Future<List<JournalEntry>> getRecentEntries(String userId) async {
-    final now = DateTime.now();
-    final sevenDaysAgo = now.subtract(const Duration(days: 7));
-
-    return getJournalEntriesByDateRange(
-      userId: userId,
-      startDate: sevenDaysAgo,
-      endDate: now,
-    );
+  /// Get entries for a specific month (for calendar view)
+  Future<List<JournalEntry>> getEntriesForMonth(
+    String userId,
+    int year,
+    int month,
+  ) async {
+    final start = DateTime(year, month, 1);
+    final end = DateTime(year, month + 1, 0, 23, 59, 59);
+    return getEntriesByDateRange(userId, start, end);
   }
 
-  /// Update journal entry
-  Future<void> updateJournalEntry(JournalEntry entry) async {
-    final model = JournalEntryModel.fromEntity(entry);
-    await _firestore
-        .collection('journal_entries')
-        .doc(entry.id)
-        .update(model.toFirestore());
+  /// Search entries by content or title
+  Future<List<JournalEntry>> searchEntries(String userId, String query) async {
+    // Firestore doesn't support full-text search, so we fetch and filter locally
+    final allEntries =
+        await _entriesRef
+            .where('userId', isEqualTo: userId)
+            .where('deletedAt', isNull: true)
+            .orderBy('createdAt', descending: true)
+            .get();
+
+    final queryLower = query.toLowerCase();
+    return allEntries.docs
+        .map((doc) => JournalEntryModel.fromFirestore(doc).toEntity())
+        .where(
+          (entry) =>
+              entry.title.toLowerCase().contains(queryLower) ||
+              entry.content.toLowerCase().contains(queryLower) ||
+              entry.tags.any((tag) => tag.toLowerCase().contains(queryLower)),
+        )
+        .toList();
   }
 
-  /// Toggle favorite status
-  Future<void> toggleFavorite(String entryId, bool isFavorite) async {
-    await _firestore.collection('journal_entries').doc(entryId).update({
-      'isFavorite': isFavorite,
-      'updatedAt': Timestamp.now(),
+  // ========== AI Reflection Operations ==========
+
+  /// Save AI reflection for an entry
+  Future<void> saveAIReflection(
+    String entryId,
+    String toneSummary,
+    List<String> reflectionQuestions,
+  ) async {
+    await _entriesRef.doc(entryId).update({
+      'aiReflection': {
+        'toneSummary': toneSummary,
+        'reflectionQuestions': reflectionQuestions,
+        'generatedAt': Timestamp.fromDate(DateTime.now()),
+      },
     });
   }
 
-  /// Delete journal entry
-  Future<void> deleteJournalEntry(String entryId) async {
-    await _firestore.collection('journal_entries').doc(entryId).delete();
+  /// Save safety flags for an entry
+  Future<void> saveSafetyFlags(String entryId, bool crisisDetected) async {
+    await _entriesRef.doc(entryId).update({
+      'safetyFlags': {
+        'crisisDetected': crisisDetected,
+        'processedAt': Timestamp.fromDate(DateTime.now()),
+      },
+    });
   }
 
-  /// Get journal statistics
-  Future<Map<String, dynamic>> getJournalStatistics(String userId) async {
-    final allEntries = await getAllJournalEntries(userId: userId);
+  // ========== Statistics ==========
 
-    if (allEntries.isEmpty) {
-      return {
-        'totalEntries': 0,
-        'entriesThisWeek': 0,
-        'entriesThisMonth': 0,
-        'favoriteCount': 0,
-        'averageWordsPerEntry': 0,
-        'commonTags': <String>[],
-        'currentStreak': 0,
-      };
-    }
-
+  /// Get journal statistics for a user
+  Future<Map<String, dynamic>> getStatistics(String userId) async {
     final now = DateTime.now();
-    final weekAgo = now.subtract(const Duration(days: 7));
-    final monthAgo = now.subtract(const Duration(days: 30));
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+    final monthStart = DateTime(now.year, now.month, 1);
 
-    // Calculate entries this week/month
+    // Get all entries
+    final allSnapshot =
+        await _entriesRef
+            .where('userId', isEqualTo: userId)
+            .where('deletedAt', isNull: true)
+            .get();
+
+    final entries =
+        allSnapshot.docs
+            .map((doc) => JournalEntryModel.fromFirestore(doc).toEntity())
+            .toList();
+
+    // Calculate stats
     final entriesThisWeek =
-        allEntries.where((e) => e.createdAt.isAfter(weekAgo)).length;
+        entries.where((e) => e.createdAt.isAfter(weekStart)).length;
     final entriesThisMonth =
-        allEntries.where((e) => e.createdAt.isAfter(monthAgo)).length;
-    final favoriteCount = allEntries.where((e) => e.isFavorite).length;
-
-    // Calculate average words per entry
-    final totalWords = allEntries.fold<int>(
-      0,
-      (total, entry) => total + entry.content.split(RegExp(r'\s+')).length,
-    );
-    final avgWords = totalWords ~/ allEntries.length;
-
-    // Get common tags
-    final tagCounts = <String, int>{};
-    for (final entry in allEntries) {
-      for (final tag in entry.tags) {
-        tagCounts[tag] = (tagCounts[tag] ?? 0) + 1;
-      }
-    }
-    final commonTags =
-        tagCounts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+        entries.where((e) => e.createdAt.isAfter(monthStart)).length;
+    final favoriteCount = entries.where((e) => e.isFavorite).length;
 
     // Calculate streak
-    final uniqueDates =
-        allEntries
-            .map(
-              (e) => DateTime(
-                e.createdAt.year,
-                e.createdAt.month,
-                e.createdAt.day,
-              ),
-            )
-            .toSet()
-            .toList()
-          ..sort((a, b) => b.compareTo(a));
-
     int streak = 0;
-    DateTime cursor = DateTime(now.year, now.month, now.day);
-    for (final date in uniqueDates) {
-      if (date.isAtSameMomentAs(cursor) ||
-          date.isAtSameMomentAs(cursor.subtract(const Duration(days: 1)))) {
+    DateTime checkDate = DateTime(now.year, now.month, now.day);
+    while (true) {
+      final hasEntry = entries.any(
+        (e) =>
+            e.createdAt.year == checkDate.year &&
+            e.createdAt.month == checkDate.month &&
+            e.createdAt.day == checkDate.day,
+      );
+      if (hasEntry) {
         streak++;
-        cursor = date.subtract(const Duration(days: 1));
+        checkDate = checkDate.subtract(const Duration(days: 1));
       } else {
         break;
       }
     }
 
+    // Word count
+    final totalWords = entries.fold<int>(0, (sum, e) => sum + e.wordCount);
+
+    // Tag frequency
+    final tagCounts = <String, int>{};
+    for (final entry in entries) {
+      for (final tag in entry.tags) {
+        tagCounts[tag] = (tagCounts[tag] ?? 0) + 1;
+      }
+    }
+    final sortedTags =
+        tagCounts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+
     return {
-      'totalEntries': allEntries.length,
+      'totalEntries': entries.length,
       'entriesThisWeek': entriesThisWeek,
       'entriesThisMonth': entriesThisMonth,
       'favoriteCount': favoriteCount,
-      'averageWordsPerEntry': avgWords,
-      'commonTags': commonTags.take(5).map((e) => e.key).toList(),
       'currentStreak': streak,
+      'totalWords': totalWords,
+      'averageWordsPerEntry':
+          entries.isEmpty ? 0 : totalWords ~/ entries.length,
+      'topTags': sortedTags.take(5).map((e) => e.key).toList(),
     };
+  }
+
+  /// Toggle favorite status
+  Future<void> toggleFavorite(String entryId, bool isFavorite) async {
+    await _entriesRef.doc(entryId).update({'isFavorite': isFavorite});
+  }
+
+  /// Toggle lock status
+  Future<void> toggleLock(String entryId, bool isLocked) async {
+    await _entriesRef.doc(entryId).update({'isLocked': isLocked});
   }
 }

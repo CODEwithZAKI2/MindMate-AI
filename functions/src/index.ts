@@ -4,8 +4,8 @@ import {
   HarmCategory,
   HarmBlockThreshold,
 } from "@google/generative-ai";
-import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {defineSecret} from "firebase-functions/params";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -74,7 +74,7 @@ interface ChatRequest {
   userId: string;
   sessionId: string;
   message: string;
-  conversationHistory?: Array<{role: string; content: string}>;
+  conversationHistory?: Array<{ role: string; content: string }>;
   userTimezone?: string; // User's timezone name (e.g., "Asia/Shanghai")
 }
 
@@ -99,7 +99,7 @@ function detectCrisis(message: string): boolean {
  */
 async function generateAIResponse(
   userMessage: string,
-  conversationHistory: Array<{role: string; content: string}>,
+  conversationHistory: Array<{ role: string; content: string }>,
   apiKey: string,
   userName?: string,
   sessionSummaries?: string[],
@@ -111,15 +111,15 @@ async function generateAIResponse(
     // Initialize Gemini with the provided API key
     const genAI = new GoogleGenerativeAI(apiKey);
     console.log("[generateAIResponse] GenAI initialized");
-    
+
     // Build contextual prompt with user name and session summaries
     let contextualPrompt = SYSTEM_PROMPT;
-    
+
     // Add user context if available
     if (userName) {
       contextualPrompt += `\n\nUser Profile Context:\n- User's name: ${userName}\n- Use their name occasionally for warmth and personalization`;
     }
-    
+
     // Add session summaries for memory continuity
     if (sessionSummaries && sessionSummaries.length > 0) {
       contextualPrompt += `\n\nPrevious Conversation Context (Recent Sessions):\n`;
@@ -141,7 +141,7 @@ async function generateAIResponse(
     } else {
       console.log("[generateAIResponse] No timezone provided, will use US default");
     }
-    
+
     const model = genAI.getGenerativeModel({
       model: "gemini-2.0-flash",
       systemInstruction: contextualPrompt,
@@ -174,7 +174,7 @@ async function generateAIResponse(
     // Build chat history - ensure it starts with user message
     let history = conversationHistory.slice(-10).map((msg) => ({
       role: msg.role === "user" ? "user" : "model",
-      parts: [{text: msg.content}],
+      parts: [{ text: msg.content }],
     }));
 
     // Gemini requires history to start with a user message
@@ -190,7 +190,7 @@ async function generateAIResponse(
       history = history.slice(0, -1);
     }
 
-    const chat = model.startChat({history});
+    const chat = model.startChat({ history });
     console.log("[generateAIResponse] Sending message to Gemini...");
     const result = await chat.sendMessage(userMessage);
     console.log("[generateAIResponse] Got result from Gemini");
@@ -209,7 +209,7 @@ async function generateAIResponse(
  * Handles incoming chat messages and returns AI responses
  */
 export const chat = onCall(
-  {secrets: ["GEMINI_API_KEY"]},
+  { secrets: ["GEMINI_API_KEY"] },
   async (request): Promise<ChatResponse> => {
     // Verify authentication
     if (!request.auth) {
@@ -219,7 +219,7 @@ export const chat = onCall(
       );
     }
 
-    const {userId, sessionId, message, conversationHistory = [], userTimezone} = request.data as ChatRequest;
+    const { userId, sessionId, message, conversationHistory = [], userTimezone } = request.data as ChatRequest;
     console.log("[chat] Received request for user:", userId, "session:", sessionId);
     console.log("[chat] User timezone received:", userTimezone || "NOT PROVIDED");
 
@@ -245,7 +245,7 @@ export const chat = onCall(
       let userName: string | undefined;
       let sessionSummaries: string[] = [];
       let moodContext: string | undefined;
-      
+
       try {
         const userDoc = await admin.firestore()
           .collection("users")
@@ -295,7 +295,7 @@ export const chat = onCall(
 
       // Check if AI detected crisis (simple keyword check in response)
       const isCrisis = detectCrisis(message);
-      
+
       // Log crisis events for monitoring
       if (isCrisis) {
         admin.firestore().collection("crisis_logs").add({
@@ -332,7 +332,7 @@ export const chat = onCall(
       const sessionDoc = await sessionRef.get();
       const sessionData = sessionDoc.data();
       const messageCount = sessionData?.messageCount || 0;
-      
+
       // Generate summary after 10 messages if not already summarized
       if (messageCount >= 10 && sessionData && !sessionData.summary && sessionData.messages) {
         console.log("[chat] Triggering summary generation for session:", sessionId);
@@ -363,12 +363,12 @@ export const chat = onCall(
  */
 async function generateSessionSummary(
   sessionId: string,
-  messages: Array<{role: string; content: string; timestamp: any}>,
+  messages: Array<{ role: string; content: string; timestamp: any }>,
   apiKey: string
 ): Promise<void> {
   try {
     console.log("[generateSessionSummary] Starting for session:", sessionId);
-    
+
     // Format conversation for summarization
     const conversationText = messages
       .map((msg) => `${msg.role === "user" ? "User" : "AI"}: ${msg.content}`)
@@ -431,11 +431,11 @@ async function fetchRecentSessionSummaries(
       .get();
 
     const summaries: string[] = [];
-    
+
     sessionsSnapshot.docs.forEach((doc) => {
       // Skip current session
       if (doc.id === currentSessionId) return;
-      
+
       const data = doc.data();
       if (data.summary && summaries.length < limit) {
         summaries.push(data.summary);
@@ -472,7 +472,7 @@ async function fetchRecentMoodContext(
 
     if (snapshot.empty) return undefined;
 
-    const entries: Array<{score: number; createdAt: Date; note?: string; tags?: string[]}> = snapshot.docs.map((doc) => {
+    const entries: Array<{ score: number; createdAt: Date; note?: string; tags?: string[] }> = snapshot.docs.map((doc) => {
       const data = doc.data() as Record<string, any>;
       return {
         score: data.moodScore as number,
@@ -510,3 +510,538 @@ async function fetchRecentMoodContext(
     return undefined;
   }
 }
+
+// ================== JOURNAL AI FUNCTIONS ==================
+
+interface JournalReflectionRequest {
+  entryId: string;
+  content: string;
+  userId: string;
+}
+
+interface JournalReflectionResponse {
+  success: boolean;
+  safe: boolean;
+  reflection?: {
+    toneSummary: string;
+    reflectionQuestions: string[];
+  };
+  crisisResponse?: string;
+  error?: string;
+}
+
+/**
+ * Generate AI reflection for journal entry
+ * Runs crisis detection before processing
+ */
+export const generateJournalReflection = onCall(
+  { secrets: ["GEMINI_API_KEY"] },
+  async (request): Promise<JournalReflectionResponse> => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const { entryId, content, userId } = request.data as JournalReflectionRequest;
+
+    if (!entryId || !content || !userId) {
+      throw new HttpsError("invalid-argument", "Missing required fields");
+    }
+
+    if (request.auth.uid !== userId) {
+      throw new HttpsError("permission-denied", "User ID mismatch");
+    }
+
+    // Minimum content length for reflection
+    if (content.length < 50) {
+      return {
+        success: true,
+        safe: true,
+        reflection: undefined, // No reflection for short entries
+      };
+    }
+
+    try {
+      // SAFETY CHECK: Detect crisis before AI processing
+      const isCrisis = detectCrisis(content);
+
+      if (isCrisis) {
+        console.log("[generateJournalReflection] Crisis detected for entry:", entryId);
+
+        // Log crisis event
+        await admin.firestore().collection("crisis_logs").add({
+          userId,
+          source: "journal",
+          entryId,
+          content: content.substring(0, 200),
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Update entry with safety flags
+        await admin.firestore().collection("journal_entries").doc(entryId).update({
+          safetyFlags: {
+            crisisDetected: true,
+            processedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+        });
+
+        return {
+          success: true,
+          safe: false,
+          crisisResponse: "We noticed you might be going through a difficult time. " +
+            "You're not alone, and support is available. " +
+            "If you need someone to talk to, please reach out to a trusted person or crisis helpline.",
+        };
+      }
+
+      // Generate AI reflection
+      const genAI = new GoogleGenerativeAI(geminiApiKey.value());
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.0-flash",
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 200,
+        },
+      });
+
+      const prompt = `You are a supportive, non-clinical wellness companion.
+The user just wrote a journal entry. Provide:
+1. A brief emotional tone summary (1 sentence, max 20 words)
+2. 1-2 gentle reflection questions to encourage self-awareness
+
+Rules:
+- Never diagnose or label mental conditions
+- Use warm, encouraging language
+- Avoid assumptions about their situation
+- Be compassionate and supportive
+
+Entry: ${content}
+
+Respond in this exact JSON format:
+{
+  "toneSummary": "...",
+  "reflectionQuestions": ["...", "..."]
+}`;
+
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+
+      // Parse JSON response
+      let reflection;
+      try {
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          reflection = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error("No JSON found in response");
+        }
+      } catch (parseError) {
+        console.error("[generateJournalReflection] Parse error:", parseError);
+        // Fallback: create generic reflection
+        reflection = {
+          toneSummary: "Thank you for sharing your thoughts today.",
+          reflectionQuestions: ["What stood out to you most as you wrote?"],
+        };
+      }
+
+      // Save reflection to Firestore
+      await admin.firestore().collection("journal_entries").doc(entryId).update({
+        aiReflection: {
+          toneSummary: reflection.toneSummary,
+          reflectionQuestions: reflection.reflectionQuestions,
+          generatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        safetyFlags: {
+          crisisDetected: false,
+          processedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+      });
+
+      return {
+        success: true,
+        safe: true,
+        reflection: {
+          toneSummary: reflection.toneSummary,
+          reflectionQuestions: reflection.reflectionQuestions,
+        },
+      };
+    } catch (error) {
+      console.error("[generateJournalReflection] Error:", error);
+      return {
+        success: false,
+        safe: true,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+);
+
+interface SmartPromptsRequest {
+  userId: string;
+}
+
+interface SmartPromptsResponse {
+  success: boolean;
+  prompts?: Array<{ category: string; prompt: string }>;
+  error?: string;
+}
+
+/**
+ * Generate contextual journaling prompts based on user's mood and history
+ */
+export const generateSmartPrompts = onCall(
+  { secrets: ["GEMINI_API_KEY"] },
+  async (request): Promise<SmartPromptsResponse> => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const { userId } = request.data as SmartPromptsRequest;
+
+    if (request.auth.uid !== userId) {
+      throw new HttpsError("permission-denied", "User ID mismatch");
+    }
+
+    try {
+      // Fetch recent mood context
+      const moodContext = await fetchRecentMoodContext(userId, 7, 5);
+
+      // Get time of day
+      const hour = new Date().getHours();
+      const timeOfDay = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
+
+      // Use Gemini to generate personalized prompts
+      const genAI = new GoogleGenerativeAI(geminiApiKey.value());
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.0-flash",
+        generationConfig: {
+          temperature: 0.8,
+          maxOutputTokens: 300,
+        },
+      });
+
+      let contextInfo = `Time: ${timeOfDay}`;
+      if (moodContext) {
+        contextInfo += `\nRecent mood data:\n${moodContext}`;
+      }
+
+      const prompt = `Generate 4 personalized journaling prompts for a mental wellness app user.
+
+Context:
+${contextInfo}
+
+Categories to cover:
+1. gratitude - Something to appreciate
+2. reflection - Looking back on experiences  
+3. reframing - Finding positive perspectives
+4. self_compassion - Being kind to oneself
+
+Rules:
+- Each prompt should be 1 question, max 15 words
+- Be warm and encouraging
+- If mood is low, focus on gentle, supportive prompts
+- If mood is good, encourage celebrating wins
+
+Respond in this exact JSON format:
+[
+  {"category": "gratitude", "prompt": "..."},
+  {"category": "reflection", "prompt": "..."},
+  {"category": "reframing", "prompt": "..."},
+  {"category": "self_compassion", "prompt": "..."}
+]`;
+
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+
+      let prompts;
+      try {
+        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          prompts = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error("No JSON array found");
+        }
+      } catch (parseError) {
+        // Fallback prompts
+        prompts = [
+          { category: "gratitude", prompt: "What's one small thing you're grateful for today?" },
+          { category: "reflection", prompt: "What moment stood out to you today?" },
+          { category: "reframing", prompt: "What's one thing that went better than expected?" },
+          { category: "self_compassion", prompt: "What would you tell a friend feeling this way?" },
+        ];
+      }
+
+      return {
+        success: true,
+        prompts,
+      };
+    } catch (error) {
+      console.error("[generateSmartPrompts] Error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+);
+
+interface ReframeRequest {
+  userId: string;
+  text: string;
+}
+
+interface ReframeResponse {
+  success: boolean;
+  reframed?: string;
+  error?: string;
+}
+
+/**
+ * Reframe journal text with CBT-inspired perspective
+ */
+export const reframeJournalText = onCall(
+  { secrets: ["GEMINI_API_KEY"] },
+  async (request): Promise<ReframeResponse> => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const { userId, text } = request.data as ReframeRequest;
+
+    if (!text || text.length < 10) {
+      throw new HttpsError("invalid-argument", "Text too short to reframe");
+    }
+
+    if (request.auth.uid !== userId) {
+      throw new HttpsError("permission-denied", "User ID mismatch");
+    }
+
+    try {
+      const genAI = new GoogleGenerativeAI(geminiApiKey.value());
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.0-flash",
+        generationConfig: {
+          temperature: 0.6,
+          maxOutputTokens: 150,
+        },
+      });
+
+      const prompt = `The user selected this text from their journal and wants a gentler, more balanced perspective:
+
+"${text}"
+
+Provide a reframed version that:
+- Reduces harsh self-criticism
+- Offers balanced, compassionate language
+- Does NOT diagnose or give clinical advice
+- Keeps the original meaning intact
+- Uses "I" statements from the user's perspective
+
+Return ONLY the reframed text (1-3 sentences), nothing else.`;
+
+      const result = await model.generateContent(prompt);
+      const reframed = result.response.text().trim();
+
+      return {
+        success: true,
+        reframed,
+      };
+    } catch (error) {
+      console.error("[reframeJournalText] Error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+);
+
+// ================== EMOTIONAL SUMMARY FUNCTION ==================
+
+interface EmotionalSummaryRequest {
+  userId: string;
+  period: "weekly" | "monthly";
+}
+
+interface EmotionalSummaryResponse {
+  success: boolean;
+  summary?: {
+    periodStart: string;
+    periodEnd: string;
+    entryCount: number;
+    averageMood: number;
+    moodTrend: string;
+    topEmotions: string[];
+    highlights: string;
+    insights: string;
+    encouragement: string;
+  };
+  error?: string;
+}
+
+/**
+ * Generate weekly or monthly emotional summary from journal entries
+ */
+export const generateEmotionalSummary = onCall(
+  { secrets: ["GEMINI_API_KEY"] },
+  async (request): Promise<EmotionalSummaryResponse> => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const { userId, period } = request.data as EmotionalSummaryRequest;
+
+    if (request.auth.uid !== userId) {
+      throw new HttpsError("permission-denied", "User ID mismatch");
+    }
+
+    try {
+      // Calculate date range
+      const now = new Date();
+      let periodStart: Date;
+      if (period === "weekly") {
+        periodStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      } else {
+        periodStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      }
+
+      // Fetch entries for the period
+      const snapshot = await admin.firestore()
+        .collection("journal_entries")
+        .where("userId", "==", userId)
+        .where("deletedAt", "==", null)
+        .where("createdAt", ">=", admin.firestore.Timestamp.fromDate(periodStart))
+        .orderBy("createdAt", "desc")
+        .get();
+
+      if (snapshot.empty || snapshot.docs.length < 2) {
+        return {
+          success: true,
+          summary: undefined, // Not enough entries for summary
+        };
+      }
+
+      // Extract entry data
+      const entries = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          date: (data.createdAt as admin.firestore.Timestamp).toDate().toISOString().split("T")[0],
+          moodScore: data.moodScore as number | null,
+          tags: (data.tags as string[]) || [],
+          title: data.title as string,
+          contentSnippet: (data.content as string).substring(0, 100),
+        };
+      });
+
+      // Calculate stats
+      const moods = entries.filter((e) => e.moodScore != null).map((e) => e.moodScore as number);
+      const avgMood = moods.length > 0
+        ? Number((moods.reduce((a, b) => a + b, 0) / moods.length).toFixed(1))
+        : 0;
+
+      const trendDelta = moods.length >= 2 ? moods[0] - moods[moods.length - 1] : 0;
+      const moodTrend = trendDelta > 0 ? "improving" : trendDelta < 0 ? "declining" : "steady";
+
+      // Get top tags
+      const tagCounts: Record<string, number> = {};
+      entries.forEach((e) => e.tags.forEach((t) => {
+        tagCounts[t] = (tagCounts[t] || 0) + 1;
+      }));
+      const topEmotions = Object.entries(tagCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([tag]) => tag);
+
+      // Generate AI insights
+      const genAI = new GoogleGenerativeAI(geminiApiKey.value());
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.0-flash",
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 350,
+        },
+      });
+
+      const entrySummaries = entries.slice(0, 10).map((e) =>
+        `${e.date}: Mood ${e.moodScore || "?"}. "${e.title}" - ${e.contentSnippet}...`
+      ).join("\n");
+
+      const prompt = `Analyze this ${period} journal summary for a wellness app:
+
+Period: ${periodStart.toISOString().split("T")[0]} to ${now.toISOString().split("T")[0]}
+Entries: ${entries.length}
+Average Mood: ${avgMood}/5
+Trend: ${moodTrend}
+Top Tags: ${topEmotions.join(", ") || "none"}
+
+Recent Entries:
+${entrySummaries}
+
+Generate a supportive summary with:
+1. highlights (1-2 sentences: key themes or moments)
+2. insights (1-2 sentences: patterns or observations)
+3. encouragement (1 sentence: positive, forward-looking)
+
+Rules:
+- Be warm and supportive
+- Never diagnose or give clinical advice
+- Focus on growth and self-compassion
+
+Respond in JSON:
+{
+  "highlights": "...",
+  "insights": "...",
+  "encouragement": "..."
+}`;
+
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+
+      let aiContent;
+      try {
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          aiContent = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error("No JSON found");
+        }
+      } catch {
+        aiContent = {
+          highlights: "You've been consistently journaling - that's wonderful!",
+          insights: "Regular reflection is a powerful tool for self-awareness.",
+          encouragement: "Keep nurturing this practice.",
+        };
+      }
+
+      const summary = {
+        periodStart: periodStart.toISOString().split("T")[0],
+        periodEnd: now.toISOString().split("T")[0],
+        entryCount: entries.length,
+        averageMood: avgMood,
+        moodTrend,
+        topEmotions,
+        highlights: aiContent.highlights,
+        insights: aiContent.insights,
+        encouragement: aiContent.encouragement,
+      };
+
+      // Save summary to Firestore
+      await admin.firestore().collection("emotional_summaries").add({
+        userId,
+        period,
+        ...summary,
+        generatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return {
+        success: true,
+        summary,
+      };
+    } catch (error) {
+      console.error("[generateEmotionalSummary] Error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+);

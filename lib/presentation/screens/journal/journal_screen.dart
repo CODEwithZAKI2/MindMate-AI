@@ -7,6 +7,8 @@ import '../../providers/auth_provider.dart';
 import '../../providers/journal_provider.dart';
 import '../../../core/constants/routes.dart';
 
+/// Journal List Screen with Timeline View
+/// Follows specification: calm, minimal interface, slow and intentional
 class JournalScreen extends ConsumerStatefulWidget {
   const JournalScreen({super.key});
 
@@ -14,26 +16,41 @@ class JournalScreen extends ConsumerStatefulWidget {
   ConsumerState<JournalScreen> createState() => _JournalScreenState();
 }
 
-class _JournalScreenState extends ConsumerState<JournalScreen> {
+class _JournalScreenState extends ConsumerState<JournalScreen>
+    with SingleTickerProviderStateMixin {
   String _searchQuery = '';
   bool _showSearch = false;
   final _searchController = TextEditingController();
+  late AnimationController _fabController;
 
-  // Premium color palette
-  static const _primaryGradient = [Color(0xFF667EEA), Color(0xFF764BA2)];
-  static const _accentGradient = [Color(0xFFF093FB), Color(0xFFF5576C)];
-  static const _calmGradient = [Color(0xFF4FACFE), Color(0xFF00F2FE)];
+  // Calming color palette
+  static const _primaryColor = Color(0xFF6366F1); // Indigo
+  static const _secondaryColor = Color(0xFF8B5CF6); // Purple
+  static const _surfaceColor = Color(0xFFFAFAFC);
+  static const _cardColor = Colors.white;
+
+  @override
+  void initState() {
+    super.initState();
+    _fabController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) _fabController.forward();
+    });
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _fabController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final userId = ref.watch(currentUserIdProvider);
-
     if (userId == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -42,30 +59,15 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
     final statsAsync = ref.watch(journalStatisticsProvider(userId));
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: _surfaceColor,
       body: SafeArea(
         child: Column(
           children: [
-            // Fixed header that doesn't scroll
             _buildHeader(statsAsync),
-
-            // Daily prompt
-            _buildDailyPromptCard(),
-
-            // Search bar
+            _buildPromptCard(),
             if (_showSearch) _buildSearchBar(),
-
-            // Section title
-            _buildSectionTitle(),
-
-            // Scrollable entries list
-            Expanded(
-              child: entriesAsync.when(
-                data: (entries) => _buildEntriesList(entries),
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(child: Text('Error: $e')),
-              ),
-            ),
+            _buildSectionHeader(),
+            Expanded(child: _buildEntriesList(entriesAsync)),
           ],
         ),
       ),
@@ -75,77 +77,48 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
 
   Widget _buildHeader(AsyncValue<Map<String, dynamic>> statsAsync) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_primaryGradient[0].withOpacity(0.08), Colors.transparent],
-        ),
-      ),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Journal',
                     style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -1,
-                      color: Color(0xFF1E293B),
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey.shade900,
+                      letterSpacing: -0.5,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
                     DateFormat('EEEE, MMMM d').format(DateTime.now()),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF64748B),
+                      color: Colors.grey.shade500,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ),
-              GestureDetector(
-                onTap:
-                    () => setState(() {
-                      _showSearch = !_showSearch;
-                      if (!_showSearch) {
-                        _searchQuery = '';
-                        _searchController.clear();
-                      }
-                    }),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _primaryGradient[0].withOpacity(0.12),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    _showSearch ? Icons.close : Icons.search_rounded,
-                    color: _primaryGradient[0],
-                    size: 22,
-                  ),
-                ),
+              Row(
+                children: [
+                  _buildInsightsButton(),
+                  const SizedBox(width: 8),
+                  _buildCalendarButton(),
+                  const SizedBox(width: 8),
+                  _buildSearchButton(),
+                ],
               ),
             ],
           ),
           const SizedBox(height: 20),
-          // Stats row
           statsAsync.when(
             data: (stats) => _buildStatsRow(stats),
             loading: () => _buildStatsPlaceholder(),
@@ -156,91 +129,148 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
     );
   }
 
+  Widget _buildInsightsButton() {
+    return GestureDetector(
+      onTap: () => context.push(Routes.journalInsights),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [_primaryColor, _secondaryColor]),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: _primaryColor.withOpacity(0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.insights_rounded,
+          color: Colors.white,
+          size: 22,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCalendarButton() {
+    return GestureDetector(
+      onTap: () => context.push(Routes.journalCalendar),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _cardColor,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(
+          Icons.calendar_month_rounded,
+          color: _primaryColor,
+          size: 22,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchButton() {
+    return GestureDetector(
+      onTap:
+          () => setState(() {
+            _showSearch = !_showSearch;
+            if (!_showSearch) {
+              _searchQuery = '';
+              _searchController.clear();
+            }
+          }),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _cardColor,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(
+          _showSearch ? Icons.close_rounded : Icons.search_rounded,
+          color: _primaryColor,
+          size: 22,
+        ),
+      ),
+    );
+  }
+
   Widget _buildStatsRow(Map<String, dynamic> stats) {
     return Row(
       children: [
-        Expanded(
-          child: _buildStatCard(
-            '${stats['totalEntries'] ?? 0}',
-            'Entries',
-            Icons.book_rounded,
-            _primaryGradient,
-          ),
+        _buildStatCard(
+          '${stats['totalEntries'] ?? 0}',
+          'Entries',
+          _primaryColor,
         ),
         const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
-            '${stats['currentStreak'] ?? 0}',
-            'Day Streak',
-            Icons.local_fire_department_rounded,
-            _accentGradient,
-          ),
+        _buildStatCard(
+          '${stats['currentStreak'] ?? 0}',
+          'Day Streak',
+          const Color(0xFFEC4899),
         ),
         const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
-            '${stats['entriesThisWeek'] ?? 0}',
-            'This Week',
-            Icons.calendar_today_rounded,
-            _calmGradient,
-          ),
+        _buildStatCard(
+          '${stats['entriesThisWeek'] ?? 0}',
+          'This Week',
+          const Color(0xFF06B6D4),
         ),
       ],
     );
   }
 
-  Widget _buildStatCard(
-    String value,
-    String label,
-    IconData icon,
-    List<Color> gradient,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: gradient[0].withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: gradient),
-              borderRadius: BorderRadius.circular(10),
+  Widget _buildStatCard(String value, String label, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: _cardColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
-            child: Icon(icon, color: Colors.white, size: 16),
-          ),
-          const SizedBox(height: 8),
-          ShaderMask(
-            shaderCallback:
-                (bounds) =>
-                    LinearGradient(colors: gradient).createShader(bounds),
-            child: Text(
+          ],
+        ),
+        child: Column(
+          children: [
+            Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                color: color,
               ),
             ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF94A3B8),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade500,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -251,11 +281,11 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
         3,
         (i) => Expanded(
           child: Container(
-            height: 100,
+            height: 80,
             margin: EdgeInsets.only(right: i < 2 ? 12 : 0),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.5),
-              borderRadius: BorderRadius.circular(18),
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(16),
             ),
           ),
         ),
@@ -263,7 +293,16 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
     );
   }
 
-  Widget _buildDailyPromptCard() {
+  Widget _buildPromptCard() {
+    final userId = ref.watch(currentUserIdProvider);
+    if (userId == null) return const SizedBox.shrink();
+
+    final promptAsync = ref.watch(dailyPromptProvider(userId));
+
+    // Default prompt if AI fetch fails
+    final defaultPrompt = 'What are you grateful for today?';
+    final displayPrompt = promptAsync.valueOrNull?.prompt ?? defaultPrompt;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
       child: GestureDetector(
@@ -274,12 +313,12 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: _primaryGradient,
+              colors: [_primaryColor, _secondaryColor],
             ),
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: _primaryGradient[0].withOpacity(0.35),
+                color: _primaryColor.withOpacity(0.3),
                 blurRadius: 16,
                 offset: const Offset(0, 8),
               ),
@@ -300,19 +339,19 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.auto_awesome,
                             size: 12,
-                            color: Colors.white,
+                            color: Colors.white.withOpacity(0.9),
                           ),
-                          SizedBox(width: 4),
+                          const SizedBox(width: 4),
                           Text(
                             "Today's Prompt",
                             style: TextStyle(
-                              color: Colors.white,
+                              color: Colors.white.withOpacity(0.9),
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),
@@ -321,21 +360,21 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'What are you grateful for today?',
-                      style: TextStyle(
+                    Text(
+                      displayPrompt,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 17,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                         height: 1.3,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       'Tap to start writing...',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 13,
                       ),
                     ),
                   ],
@@ -365,12 +404,12 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: _cardColor,
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.04),
-              blurRadius: 10,
+              blurRadius: 8,
               offset: const Offset(0, 2),
             ),
           ],
@@ -378,53 +417,51 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
         child: TextField(
           controller: _searchController,
           onChanged: (v) => setState(() => _searchQuery = v),
-          decoration: const InputDecoration(
-            hintText: 'Search reflections...',
-            hintStyle: TextStyle(color: Color(0xFF94A3B8)),
-            prefixIcon: Icon(Icons.search_rounded, color: Color(0xFF94A3B8)),
+          decoration: InputDecoration(
+            hintText: 'Search your reflections...',
+            hintStyle: TextStyle(color: Colors.grey.shade400),
+            prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade400),
             border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSectionTitle() {
+  Widget _buildSectionHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
       child: Row(
         children: [
-          const Text(
+          Text(
             'Your Reflections',
             style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1E293B),
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade800,
             ),
           ),
           const Spacer(),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  _primaryGradient[0].withOpacity(0.1),
-                  _primaryGradient[1].withOpacity(0.1),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(16),
+              color: _primaryColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.auto_awesome, size: 12, color: _primaryGradient[0]),
+                Icon(Icons.auto_awesome, size: 12, color: _primaryColor),
                 const SizedBox(width: 4),
                 Text(
                   'AI Enhanced',
                   style: TextStyle(
                     fontSize: 10,
-                    color: _primaryGradient[0],
+                    color: _primaryColor,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -436,51 +473,54 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
     );
   }
 
-  Widget _buildEntriesList(List<JournalEntry> entries) {
-    final filtered =
-        _searchQuery.isEmpty
-            ? entries
-            : entries
-                .where(
-                  (e) =>
-                      e.title.toLowerCase().contains(
-                        _searchQuery.toLowerCase(),
-                      ) ||
-                      e.content.toLowerCase().contains(
-                        _searchQuery.toLowerCase(),
-                      ),
-                )
-                .toList();
+  Widget _buildEntriesList(AsyncValue<List<JournalEntry>> entriesAsync) {
+    return entriesAsync.when(
+      data: (entries) {
+        final filtered =
+            _searchQuery.isEmpty
+                ? entries
+                : entries
+                    .where(
+                      (e) =>
+                          e.title.toLowerCase().contains(
+                            _searchQuery.toLowerCase(),
+                          ) ||
+                          e.content.toLowerCase().contains(
+                            _searchQuery.toLowerCase(),
+                          ),
+                    )
+                    .toList();
 
-    if (filtered.isEmpty) {
-      return _buildEmptyState();
-    }
+        if (filtered.isEmpty) return _buildEmptyState();
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
-      itemCount: filtered.length,
-      itemBuilder: (context, index) => _buildJournalCard(filtered[index]),
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
+          physics: const BouncingScrollPhysics(),
+          itemCount: filtered.length,
+          itemBuilder: (context, index) => _buildEntryCard(filtered[index]),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Error: $e')),
     );
   }
 
-  Widget _buildJournalCard(JournalEntry entry) {
-    final dateFormat = DateFormat('MMM d');
-    final timeFormat = DateFormat('h:mm a');
+  Widget _buildEntryCard(JournalEntry entry) {
     final moodColor =
         entry.moodScore != null ? _getMoodColor(entry.moodScore!) : null;
 
     return GestureDetector(
-      onTap: () => context.push('${Routes.journalEntry}/${entry.id}'),
+      onTap: () => context.push('${Routes.journalDetail}/${entry.id}'),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          color: _cardColor,
+          borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.04),
-              blurRadius: 12,
+              blurRadius: 10,
               offset: const Offset(0, 4),
             ),
           ],
@@ -490,46 +530,18 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
           children: [
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        _primaryGradient[0].withOpacity(0.1),
-                        _primaryGradient[1].withOpacity(0.08),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today_rounded,
-                        size: 10,
-                        color: _primaryGradient[0],
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        dateFormat.format(entry.createdAt),
-                        style: TextStyle(
-                          color: _primaryGradient[0],
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
+                Text(
+                  DateFormat('MMM d').format(entry.createdAt),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _primaryColor,
                   ),
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  timeFormat.format(entry.createdAt),
-                  style: const TextStyle(
-                    color: Color(0xFF94A3B8),
-                    fontSize: 11,
-                  ),
+                  DateFormat('h:mm a').format(entry.createdAt),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                 ),
                 const Spacer(),
                 if (entry.isFavorite)
@@ -538,15 +550,23 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                     size: 16,
                     color: Colors.red.shade400,
                   ),
+                if (entry.isLocked) ...[
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.lock_rounded,
+                    size: 16,
+                    color: Colors.grey.shade400,
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 12),
             Text(
               entry.title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1E293B),
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade900,
                 height: 1.3,
               ),
               maxLines: 2,
@@ -555,9 +575,9 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
             const SizedBox(height: 6),
             Text(
               entry.contentPreview,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF64748B),
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade500,
                 height: 1.5,
               ),
               maxLines: 2,
@@ -573,7 +593,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: moodColor.withOpacity(0.12),
+                      color: moodColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -606,32 +626,25 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
+                          color: Colors.grey.shade100,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           '#$tag',
-                          style: const TextStyle(
-                            color: Color(0xFF64748B),
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
                     ),
-                if (entry.isFromPrompt) ...[
+                if (entry.hasReflection) ...[
                   const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: _primaryGradient),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Icon(
-                      Icons.auto_awesome,
-                      size: 10,
-                      color: Colors.white,
-                    ),
+                  Icon(
+                    Icons.psychology_rounded,
+                    size: 16,
+                    color: _primaryColor.withOpacity(0.6),
                   ),
                 ],
               ],
@@ -644,75 +657,66 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
 
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  _primaryGradient[0].withOpacity(0.1),
-                  _primaryGradient[1].withOpacity(0.1),
-                ],
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: _primaryColor.withOpacity(0.08),
+                shape: BoxShape.circle,
               ),
-              shape: BoxShape.circle,
+              child: Icon(Icons.book_rounded, size: 40, color: _primaryColor),
             ),
-            child: ShaderMask(
-              shaderCallback:
-                  (bounds) => LinearGradient(
-                    colors: _primaryGradient,
-                  ).createShader(bounds),
-              child: const Icon(
-                Icons.book_rounded,
-                size: 40,
-                color: Colors.white,
+            const SizedBox(height: 24),
+            Text(
+              'Your journal awaits',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade800,
               ),
             ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Your journal awaits',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1E293B),
+            const SizedBox(height: 8),
+            Text(
+              'Start writing to reflect and grow',
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
             ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Begin your journey of self-reflection',
-            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildFAB() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(colors: _primaryGradient),
-        boxShadow: [
-          BoxShadow(
-            color: _primaryGradient[0].withOpacity(0.4),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: FloatingActionButton.extended(
-        onPressed: () => context.push(Routes.journalEntry),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        icon: const Icon(Icons.edit_rounded, color: Colors.white, size: 18),
-        label: const Text(
-          'Write',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
+    return ScaleTransition(
+      scale: _fabController,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(colors: [_primaryColor, _secondaryColor]),
+          boxShadow: [
+            BoxShadow(
+              color: _primaryColor.withOpacity(0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: FloatingActionButton.extended(
+          onPressed: () => context.push(Routes.journalEntry),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          icon: const Icon(Icons.edit_rounded, color: Colors.white, size: 18),
+          label: const Text(
+            'Write',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
           ),
         ),
       ),
@@ -722,17 +726,17 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
   Color _getMoodColor(int score) {
     switch (score) {
       case 1:
-        return const Color(0xFFE879F9);
+        return const Color(0xFFEF4444);
       case 2:
-        return const Color(0xFFFB923C);
+        return const Color(0xFFF97316);
       case 3:
-        return const Color(0xFF60A5FA);
+        return const Color(0xFFEAB308);
       case 4:
-        return const Color(0xFF34D399);
+        return const Color(0xFF22C55E);
       case 5:
-        return const Color(0xFF818CF8);
+        return const Color(0xFF6366F1);
       default:
-        return const Color(0xFF94A3B8);
+        return Colors.grey;
     }
   }
 

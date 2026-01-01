@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../domain/entities/journal_entry.dart';
+import '../../../data/services/journal_ai_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/journal_provider.dart';
+import '../../widgets/voice_recording_widget.dart';
 
+/// Journal Entry Editor Screen
+/// Follows specification: slow and intentional experience, calm interface
 class JournalEntryScreen extends ConsumerStatefulWidget {
   final String? entryId;
 
@@ -28,29 +32,17 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
   String? _promptText;
   JournalEntry? _existingEntry;
 
-  // Premium colors
-  static const _primaryGradient = [Color(0xFF667EEA), Color(0xFF764BA2)];
-  static const _moodColors = [
-    Color(0xFFE879F9),
-    Color(0xFFFB923C),
-    Color(0xFF60A5FA),
-    Color(0xFF34D399),
-    Color(0xFF818CF8),
-  ];
+  // Calming colors
+  static const _primaryColor = Color(0xFF6366F1);
+  static const _secondaryColor = Color(0xFF8B5CF6);
+  static const _surfaceColor = Color(0xFFFAFAFC);
 
-  final List<String> _availableTags = [
-    'Gratitude',
-    'Reflection',
-    'Goals',
-    'Dreams',
-    'Growth',
-    'Peace',
-    'Family',
-    'Work',
-    'Health',
-    'Love',
-    'Mindful',
-    'Joy',
+  static const _moodColors = [
+    Color(0xFFEF4444), // Sad - Red
+    Color(0xFFF97316), // Low - Orange
+    Color(0xFFEAB308), // Okay - Yellow
+    Color(0xFF22C55E), // Good - Green
+    Color(0xFF6366F1), // Great - Indigo
   ];
 
   @override
@@ -93,10 +85,7 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) _showSnackBar('Error loading entry', isError: true);
     }
   }
 
@@ -104,16 +93,19 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
     if (title.isEmpty && content.isEmpty) {
-      _showSnackBar('Please add a title or content', isError: true);
+      _showSnackBar('Please write something first', isError: true);
       return;
     }
+
     final userId = ref.read(currentUserIdProvider);
     if (userId == null) return;
 
     setState(() => _isLoading = true);
     try {
       final notifier = ref.read(journalNotifierProvider.notifier);
+      final aiService = ref.read(journalAIServiceProvider);
       final now = DateTime.now();
+      String? entryId;
 
       if (_existingEntry != null) {
         await notifier.updateEntry(
@@ -126,8 +118,9 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
             isFavorite: _isFavorite,
           ),
         );
+        entryId = _existingEntry!.id;
       } else {
-        await notifier.createEntry(
+        entryId = await notifier.createEntry(
           JournalEntry(
             id: '',
             userId: userId,
@@ -142,26 +135,209 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
           ),
         );
       }
-      if (mounted) {
-        _showSnackBar(
-          _existingEntry != null ? 'Entry updated ✨' : 'Entry saved ✨',
+
+      // Generate AI reflection (only for new entries with sufficient content)
+      if (_existingEntry == null && content.length >= 50) {
+        final result = await aiService.generateReflection(
+          entryId: entryId,
+          content: content,
+          userId: userId,
         );
-        context.pop();
+
+        if (mounted) {
+          setState(() => _isLoading = false);
+          if (result.isCrisis) {
+            await _showCrisisDialog(result.crisisResponse ?? '');
+          } else if (result.hasReflection) {
+            await _showReflectionDialog(
+              result.toneSummary!,
+              result.reflectionQuestions!,
+            );
+          }
+          context.pop();
+        }
+      } else {
+        if (mounted) {
+          _showSnackBar(
+            _existingEntry != null ? 'Entry updated ✨' : 'Entry saved ✨',
+          );
+          context.pop();
+        }
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      _showSnackBar('Error: $e', isError: true);
+      _showSnackBar('Failed to save', isError: true);
     }
+  }
+
+  Future<void> _showReflectionDialog(
+    String toneSummary,
+    List<String> questions,
+  ) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder:
+          (ctx) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.white, _primaryColor.withOpacity(0.03)],
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [_primaryColor, _secondaryColor],
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'AI Reflection',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: _primaryColor.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      toneSummary,
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Colors.grey.shade700,
+                        height: 1.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ...questions.map(
+                    (q) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.psychology_outlined,
+                            size: 18,
+                            color: _primaryColor,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              q,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey.shade600,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _primaryColor,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Continue',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
+  }
+
+  Future<void> _showCrisisDialog(String message) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            icon: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.favorite, color: Colors.red.shade400, size: 28),
+            ),
+            title: const Text(
+              'We\'re Here For You',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            content: Text(
+              message,
+              style: TextStyle(color: Colors.grey.shade600, height: 1.5),
+              textAlign: TextAlign.center,
+            ),
+            actions: [
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _primaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text('I Understand'),
+                ),
+              ),
+            ],
+          ),
+    );
   }
 
   void _showSnackBar(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
-        backgroundColor:
-            isError ? const Color(0xFFEF4444) : _primaryGradient[0],
+        content: Text(msg),
+        backgroundColor: isError ? Colors.red.shade400 : _primaryColor,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),
       ),
     );
@@ -174,27 +350,27 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
       builder:
           (ctx) => AlertDialog(
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(16),
             ),
-            title: const Text(
-              'Delete Entry?',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-            content: const Text('This reflection will be gone forever.'),
+            title: const Text('Delete this entry?'),
+            content: const Text('You can recover it within 30 days.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Keep it'),
+                child: const Text('Cancel'),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.red.shade400,
+                ),
                 child: const Text('Delete'),
               ),
             ],
           ),
     );
     if (confirmed != true) return;
+
     try {
       await ref
           .read(journalNotifierProvider.notifier)
@@ -204,298 +380,238 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
         context.pop();
       }
     } catch (e) {
-      _showSnackBar('Error: $e', isError: true);
+      _showSnackBar('Failed to delete', isError: true);
     }
   }
 
-  void _showAIPrompts() {
+  void _showPromptsSheet() {
     final prompts = ref.read(aiJournalPromptsProvider);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder:
-          (_) => Container(
-            height: MediaQuery.of(context).size.height * 0.6,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      builder: (_) => _buildPromptsSheet(prompts),
+    );
+  }
+
+  Widget _buildPromptsSheet(List<Map<String, dynamic>> prompts) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.6,
+      decoration: const BoxDecoration(
+        color: _surfaceColor,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(top: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
             ),
-            child: Column(
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
               children: [
                 Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(top: 12),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE2E8F0),
-                    borderRadius: BorderRadius.circular(2),
+                    gradient: LinearGradient(
+                      colors: [_primaryColor, _secondaryColor],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome,
+                    color: Colors.white,
+                    size: 18,
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: _primaryGradient),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.auto_awesome,
-                          color: Colors.white,
-                          size: 18,
-                        ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Writing Prompts',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade800,
                       ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Writing Prompts',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1E293B),
-                        ),
+                    ),
+                    Text(
+                      'Choose one to inspire you',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade500,
                       ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: prompts.length,
-                    itemBuilder:
-                        (_, i) => GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _promptText = prompts[i];
-                              _titleController.text = prompts[i];
-                            });
-                            Navigator.pop(context);
-                            _contentFocus.requestFocus();
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(14),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.03),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.lightbulb_outline_rounded,
-                                  color: _primaryGradient[0],
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    prompts[i],
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF334155),
-                                    ),
-                                  ),
-                                ),
-                                Icon(
-                                  Icons.arrow_forward_ios_rounded,
-                                  size: 14,
-                                  color: _primaryGradient[0],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: prompts.length,
+              itemBuilder: (_, i) {
+                final prompt = prompts[i];
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _promptText = prompt['prompt'];
+                      _titleController.text = prompt['prompt'];
+                    });
+                    Navigator.pop(context);
+                    _contentFocus.requestFocus();
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.03),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.lightbulb_outline_rounded,
+                            color: _primaryColor,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            prompt['prompt'],
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: Colors.grey.shade400,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.entryId != null;
+    final tags = ref.watch(availableTagsProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF8FAFC),
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: _handleBack,
-        ),
-        title: Text(
-          isEditing ? 'Edit Entry' : 'New Entry',
-          style: const TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-            color: Color(0xFF1E293B),
-          ),
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(
-              _isFavorite
-                  ? Icons.favorite_rounded
-                  : Icons.favorite_border_rounded,
-              color:
-                  _isFavorite ? Colors.red.shade400 : const Color(0xFF94A3B8),
-            ),
-            onPressed: () => setState(() => _isFavorite = !_isFavorite),
-          ),
-          if (!isEditing)
-            Container(
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: _primaryGradient),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: IconButton(
-                icon: const Icon(
-                  Icons.auto_awesome,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                onPressed: _showAIPrompts,
-              ),
-            ),
-          if (isEditing)
-            IconButton(
-              icon: const Icon(Icons.delete_outline_rounded),
-              onPressed: _deleteEntry,
-            ),
-        ],
-      ),
+      backgroundColor: _surfaceColor,
+      appBar: _buildAppBar(isEditing),
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
               : SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // AI prompt badge
                     if (_promptText != null) _buildPromptBadge(),
-
-                    // TITLE FIELD - Premium styled container
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _primaryGradient[0].withOpacity(0.08),
-                            blurRadius: 20,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                        border: Border.all(
-                          color: _primaryGradient[0].withOpacity(0.15),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: TextField(
-                        controller: _titleController,
-                        focusNode: _titleFocus,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1E293B),
-                          letterSpacing: -0.3,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Title your reflection...',
-                          hintStyle: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF94A3B8).withOpacity(0.6),
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.all(20),
-                        ),
-                        textCapitalization: TextCapitalization.sentences,
-                        onSubmitted: (_) => _contentFocus.requestFocus(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // CONTENT FIELD - Premium styled container
-                    Container(
-                      constraints: const BoxConstraints(minHeight: 200),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 16,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                        border: Border.all(
-                          color: const Color(0xFFE2E8F0),
-                          width: 1,
-                        ),
-                      ),
-                      child: TextField(
-                        controller: _contentController,
-                        focusNode: _contentFocus,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Color(0xFF475569),
-                          height: 1.7,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Let your thoughts flow freely...',
-                          hintStyle: TextStyle(
-                            fontSize: 16,
-                            color: const Color(0xFF94A3B8).withOpacity(0.6),
-                            height: 1.7,
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.all(20),
-                        ),
-                        maxLines: null,
-                        minLines: 8,
-                        keyboardType: TextInputType.multiline,
-                        textCapitalization: TextCapitalization.sentences,
-                      ),
-                    ),
+                    _buildTitleField(),
+                    _buildContentField(),
+                    const SizedBox(height: 20),
+                    _buildVoiceRecordingSection(),
                     const SizedBox(height: 32),
-
-                    // Mood section
-                    _buildSectionHeader(
-                      'How are you feeling?',
-                      Icons.favorite_rounded,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildMoodSelector(),
+                    _buildMoodSection(),
                     const SizedBox(height: 28),
-
-                    // Tags section
-                    _buildSectionHeader('Add tags', Icons.tag_rounded),
-                    const SizedBox(height: 16),
-                    _buildTagsSelector(),
+                    _buildTagsSection(tags),
                     const SizedBox(height: 100),
                   ],
                 ),
               ),
       bottomNavigationBar: _buildSaveButton(),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar(bool isEditing) {
+    return AppBar(
+      backgroundColor: _surfaceColor,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+        onPressed: _handleBack,
+      ),
+      title: Text(
+        isEditing ? 'Edit Entry' : 'New Entry',
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 17,
+          color: Colors.grey.shade800,
+        ),
+      ),
+      centerTitle: true,
+      actions: [
+        IconButton(
+          icon: Icon(
+            _isFavorite
+                ? Icons.favorite_rounded
+                : Icons.favorite_border_rounded,
+            color: _isFavorite ? Colors.red.shade400 : Colors.grey.shade400,
+          ),
+          onPressed: () => setState(() => _isFavorite = !_isFavorite),
+        ),
+        if (!isEditing)
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_primaryColor, _secondaryColor],
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: IconButton(
+              icon: const Icon(
+                Icons.auto_awesome,
+                color: Colors.white,
+                size: 18,
+              ),
+              onPressed: _showPromptsSheet,
+            ),
+          ),
+        if (isEditing)
+          IconButton(
+            icon: Icon(
+              Icons.delete_outline_rounded,
+              color: Colors.grey.shade500,
+            ),
+            onPressed: _deleteEntry,
+          ),
+      ],
     );
   }
 
@@ -506,12 +622,9 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
         builder:
             (ctx) => AlertDialog(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(16),
               ),
-              title: const Text(
-                'Discard changes?',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
+              title: const Text('Discard changes?'),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
@@ -534,39 +647,28 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
 
   Widget _buildPromptBadge() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            _primaryGradient[0].withOpacity(0.1),
-            _primaryGradient[1].withOpacity(0.08),
+            _primaryColor.withOpacity(0.1),
+            _secondaryColor.withOpacity(0.08),
           ],
         ),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: _primaryGradient),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.auto_awesome,
-              color: Colors.white,
-              size: 12,
-            ),
-          ),
-          const SizedBox(width: 10),
+          Icon(Icons.auto_awesome, size: 14, color: _primaryColor),
+          const SizedBox(width: 6),
           Text(
-            'Writing from AI prompt',
+            'AI Prompt',
             style: TextStyle(
-              color: _primaryGradient[0],
-              fontWeight: FontWeight.w700,
+              color: _primaryColor,
               fontSize: 12,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -574,154 +676,268 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon) {
-    return Row(
-      children: [
-        ShaderMask(
-          shaderCallback:
-              (b) => LinearGradient(colors: _primaryGradient).createShader(b),
-          child: Icon(icon, color: Colors.white, size: 20),
+  Widget _buildTitleField() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+      child: TextField(
+        controller: _titleController,
+        focusNode: _titleFocus,
+        style: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w600,
+          color: Colors.grey.shade900,
+          height: 1.3,
         ),
-        const SizedBox(width: 10),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF1E293B),
+        decoration: InputDecoration(
+          hintText: 'Title your reflection...',
+          hintStyle: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade300,
           ),
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
         ),
-      ],
+        textCapitalization: TextCapitalization.sentences,
+        onSubmitted: (_) => _contentFocus.requestFocus(),
+      ),
     );
   }
 
-  Widget _buildMoodSelector() {
-    return Row(
-      children: List.generate(5, (i) {
-        final score = i + 1;
-        final isSelected = _selectedMood == score;
-        final color = _moodColors[i];
+  Widget _buildContentField() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+      child: TextField(
+        controller: _contentController,
+        focusNode: _contentFocus,
+        style: TextStyle(
+          fontSize: 16,
+          color: Colors.grey.shade700,
+          height: 1.8,
+        ),
+        decoration: InputDecoration(
+          hintText:
+              'Let your thoughts flow...\n\nTake your time. This is your space.',
+          hintStyle: TextStyle(
+            fontSize: 16,
+            color: Colors.grey.shade300,
+            height: 1.8,
+          ),
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
+        ),
+        maxLines: null,
+        minLines: 10,
+        keyboardType: TextInputType.multiline,
+        textCapitalization: TextCapitalization.sentences,
+      ),
+    );
+  }
 
-        return Expanded(
-          child: GestureDetector(
-            onTap:
-                () => setState(() {
-                  _selectedMood = isSelected ? null : score;
-                  _hasChanges = true;
-                }),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              margin: EdgeInsets.only(right: i < 4 ? 10 : 0),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                gradient:
-                    isSelected
-                        ? LinearGradient(
-                          colors: [color, color.withOpacity(0.85)],
-                        )
-                        : null,
-                color: isSelected ? null : Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color:
-                      isSelected ? Colors.transparent : const Color(0xFFE2E8F0),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color:
-                        isSelected
-                            ? color.withOpacity(0.35)
-                            : Colors.black.withOpacity(0.03),
-                    blurRadius: isSelected ? 14 : 8,
-                    offset: Offset(0, isSelected ? 6 : 3),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    _getMoodIcon(score),
-                    size: 28,
-                    color: isSelected ? Colors.white : color,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _getMoodLabel(score),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight:
-                          isSelected ? FontWeight.w700 : FontWeight.w600,
-                      color:
-                          isSelected ? Colors.white : const Color(0xFF64748B),
-                    ),
-                  ),
-                ],
-              ),
+  Widget _buildVoiceRecordingSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Voice Note',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade500,
             ),
           ),
-        );
-      }),
+          const SizedBox(height: 12),
+          VoiceRecordingWidget(
+            onRecordingComplete: (filePath) {
+              if (filePath != null) {
+                setState(() {
+                  _hasChanges = true;
+                  // Add a note that voice was recorded
+                  final currentContent = _contentController.text;
+                  if (currentContent.isNotEmpty &&
+                      !currentContent.endsWith('\n')) {
+                    _contentController.text =
+                        '$currentContent\n\n🎙️ [Voice note attached]';
+                  } else {
+                    _contentController.text =
+                        '${currentContent}🎙️ [Voice note attached]';
+                  }
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Voice note saved ✨'),
+                    backgroundColor: _primaryColor,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildTagsSelector() {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children:
-          _availableTags.map((tag) {
-            final isSelected = _selectedTags.contains(tag);
-            return GestureDetector(
-              onTap:
-                  () => setState(() {
-                    isSelected
-                        ? _selectedTags.remove(tag)
-                        : _selectedTags.add(tag);
-                    _hasChanges = true;
-                  }),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 11,
-                ),
-                decoration: BoxDecoration(
-                  gradient:
-                      isSelected
-                          ? LinearGradient(colors: _primaryGradient)
-                          : null,
-                  color: isSelected ? null : Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color:
-                        isSelected
-                            ? Colors.transparent
-                            : const Color(0xFFE2E8F0),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color:
+  Widget _buildMoodSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'How are you feeling?',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: List.generate(5, (i) {
+              final score = i + 1;
+              final isSelected = _selectedMood == score;
+              final color = _moodColors[i];
+
+              return Expanded(
+                child: GestureDetector(
+                  onTap:
+                      () => setState(() {
+                        _selectedMood = isSelected ? null : score;
+                        _hasChanges = true;
+                      }),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: EdgeInsets.only(right: i < 4 ? 10 : 0),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: isSelected ? color : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isSelected ? color : Colors.grey.shade200,
+                        width: isSelected ? 2 : 1,
+                      ),
+                      boxShadow:
                           isSelected
-                              ? _primaryGradient[0].withOpacity(0.3)
-                              : Colors.black.withOpacity(0.03),
-                      blurRadius: isSelected ? 12 : 6,
-                      offset: Offset(0, isSelected ? 4 : 2),
+                              ? [
+                                BoxShadow(
+                                  color: color.withOpacity(0.25),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ]
+                              : null,
                     ),
-                  ],
-                ),
-                child: Text(
-                  tag,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                    color: isSelected ? Colors.white : const Color(0xFF64748B),
+                    child: Column(
+                      children: [
+                        Icon(
+                          _getMoodIcon(score),
+                          size: 24,
+                          color: isSelected ? Colors.white : color,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _getMoodLabel(score),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color:
+                                isSelected
+                                    ? Colors.white
+                                    : Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          }).toList(),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTagsSection(List<String> tags) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Add tags',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children:
+                tags.map((tag) {
+                  final isSelected = _selectedTags.contains(tag);
+                  return GestureDetector(
+                    onTap:
+                        () => setState(() {
+                          isSelected
+                              ? _selectedTags.remove(tag)
+                              : _selectedTags.add(tag);
+                          _hasChanges = true;
+                        }),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient:
+                            isSelected
+                                ? LinearGradient(
+                                  colors: [_primaryColor, _secondaryColor],
+                                )
+                                : null,
+                        color: isSelected ? null : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color:
+                              isSelected
+                                  ? Colors.transparent
+                                  : Colors.grey.shade200,
+                        ),
+                        boxShadow:
+                            isSelected
+                                ? [
+                                  BoxShadow(
+                                    color: _primaryColor.withOpacity(0.2),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                                : null,
+                      ),
+                      child: Text(
+                        tag,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.w500,
+                          color:
+                              isSelected ? Colors.white : Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+          ),
+        ],
+      ),
     );
   }
 
@@ -732,15 +948,17 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
         child: GestureDetector(
           onTap: _isLoading ? null : _saveEntry,
           child: Container(
-            height: 58,
+            height: 54,
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: _primaryGradient),
-              borderRadius: BorderRadius.circular(18),
+              gradient: LinearGradient(
+                colors: [_primaryColor, _secondaryColor],
+              ),
+              borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: _primaryGradient[0].withOpacity(0.4),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
+                  color: _primaryColor.withOpacity(0.3),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
@@ -748,13 +966,11 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
               child:
                   _isLoading
                       ? const SizedBox(
-                        height: 22,
-                        width: 22,
+                        height: 20,
+                        width: 20,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
-                          ),
+                          strokeWidth: 2,
+                          color: Colors.white,
                         ),
                       )
                       : Row(
@@ -763,7 +979,7 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
                           const Icon(
                             Icons.check_rounded,
                             color: Colors.white,
-                            size: 22,
+                            size: 20,
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -771,8 +987,8 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
                                 ? 'Save Changes'
                                 : 'Save Entry',
                             style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
                               color: Colors.white,
                             ),
                           ),
@@ -785,8 +1001,8 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
     );
   }
 
-  IconData _getMoodIcon(int s) {
-    switch (s) {
+  IconData _getMoodIcon(int score) {
+    switch (score) {
       case 1:
         return Icons.sentiment_very_dissatisfied_rounded;
       case 2:
@@ -802,8 +1018,8 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
     }
   }
 
-  String _getMoodLabel(int s) {
-    switch (s) {
+  String _getMoodLabel(int score) {
+    switch (score) {
       case 1:
         return 'Sad';
       case 2:
@@ -815,7 +1031,7 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
       case 5:
         return 'Great';
       default:
-        return 'Okay';
+        return '';
     }
   }
 }

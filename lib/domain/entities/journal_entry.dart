@@ -1,18 +1,64 @@
 import 'package:equatable/equatable.dart';
 
-/// Domain entity representing a journal entry
+/// AI Reflection data generated after journal entry save
+class AIReflection extends Equatable {
+  final String toneSummary;
+  final List<String> reflectionQuestions;
+  final DateTime generatedAt;
+
+  const AIReflection({
+    required this.toneSummary,
+    required this.reflectionQuestions,
+    required this.generatedAt,
+  });
+
+  @override
+  List<Object?> get props => [toneSummary, reflectionQuestions, generatedAt];
+}
+
+/// Safety flags for crisis detection
+class SafetyFlags extends Equatable {
+  final bool crisisDetected;
+  final DateTime processedAt;
+
+  const SafetyFlags({required this.crisisDetected, required this.processedAt});
+
+  @override
+  List<Object?> get props => [crisisDetected, processedAt];
+}
+
+/// Journal Entry entity with full schema as per specification
 class JournalEntry extends Equatable {
   final String id;
   final String userId;
   final String title;
   final String content;
-  final int? moodScore; // Optional: 1-5 if linked to mood
+
+  // Mood integration
+  final int? moodScore; // 1-5 inline selection
+  final String? linkedMoodLogId; // Links to existing mood_logs
+
+  // Organization
   final List<String> tags;
+  final bool isFavorite;
+  final bool isLocked; // Entry-level privacy
+
+  // AI data
+  final String? promptId;
+  final String? promptText;
+  final AIReflection? aiReflection;
+
+  // Voice
+  final bool hasVoiceRecording;
+  final String? voiceTranscript;
+
+  // Timestamps
   final DateTime createdAt;
   final DateTime updatedAt;
-  final String? promptId; // ID of AI prompt if entry was prompted
-  final String? promptText; // The actual prompt text
-  final bool isFavorite;
+  final DateTime? deletedAt; // Soft delete
+
+  // Safety
+  final SafetyFlags? safetyFlags;
 
   const JournalEntry({
     required this.id,
@@ -20,29 +66,42 @@ class JournalEntry extends Equatable {
     required this.title,
     required this.content,
     this.moodScore,
+    this.linkedMoodLogId,
     this.tags = const [],
-    required this.createdAt,
-    required this.updatedAt,
+    this.isFavorite = false,
+    this.isLocked = false,
     this.promptId,
     this.promptText,
-    this.isFavorite = false,
+    this.aiReflection,
+    this.hasVoiceRecording = false,
+    this.voiceTranscript,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    this.safetyFlags,
   });
 
-  /// Check if this entry was created from an AI prompt
-  bool get isFromPrompt => promptId != null;
+  /// Check if entry was created from AI prompt
+  bool get isFromPrompt => promptId != null || promptText != null;
 
-  /// Get a preview of the content (first 100 chars)
+  /// Check if entry has AI reflection
+  bool get hasReflection => aiReflection != null;
+
+  /// Check if entry is soft deleted
+  bool get isDeleted => deletedAt != null;
+
+  /// Get content preview (first 100 chars)
   String get contentPreview {
-    if (content.length <= 100) return content;
-    return '${content.substring(0, 100)}...';
+    if (content.isEmpty) return '';
+    return content.length > 100 ? '${content.substring(0, 100)}...' : content;
   }
 
-  /// Get mood label if mood is linked
+  /// Get mood label from score
   String? get moodLabel {
     if (moodScore == null) return null;
     switch (moodScore) {
       case 1:
-        return 'Struggling';
+        return 'Sad';
       case 2:
         return 'Low';
       case 3:
@@ -56,24 +115,22 @@ class JournalEntry extends Equatable {
     }
   }
 
-  /// Get time since creation in readable format
+  /// Get relative time string
   String get timeAgo {
     final now = DateTime.now();
     final diff = now.difference(createdAt);
 
-    if (diff.inDays > 365) {
-      return '${(diff.inDays / 365).floor()}y ago';
-    } else if (diff.inDays > 30) {
-      return '${(diff.inDays / 30).floor()}mo ago';
-    } else if (diff.inDays > 0) {
-      return '${diff.inDays}d ago';
-    } else if (diff.inHours > 0) {
-      return '${diff.inHours}h ago';
-    } else if (diff.inMinutes > 0) {
-      return '${diff.inMinutes}m ago';
-    } else {
-      return 'Just now';
-    }
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${(diff.inDays / 7).floor()}w ago';
+  }
+
+  /// Get word count
+  int get wordCount {
+    if (content.isEmpty) return 0;
+    return content.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
   }
 
   JournalEntry copyWith({
@@ -82,12 +139,19 @@ class JournalEntry extends Equatable {
     String? title,
     String? content,
     int? moodScore,
+    String? linkedMoodLogId,
     List<String>? tags,
-    DateTime? createdAt,
-    DateTime? updatedAt,
+    bool? isFavorite,
+    bool? isLocked,
     String? promptId,
     String? promptText,
-    bool? isFavorite,
+    AIReflection? aiReflection,
+    bool? hasVoiceRecording,
+    String? voiceTranscript,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    DateTime? deletedAt,
+    SafetyFlags? safetyFlags,
   }) {
     return JournalEntry(
       id: id ?? this.id,
@@ -95,12 +159,19 @@ class JournalEntry extends Equatable {
       title: title ?? this.title,
       content: content ?? this.content,
       moodScore: moodScore ?? this.moodScore,
+      linkedMoodLogId: linkedMoodLogId ?? this.linkedMoodLogId,
       tags: tags ?? this.tags,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
+      isFavorite: isFavorite ?? this.isFavorite,
+      isLocked: isLocked ?? this.isLocked,
       promptId: promptId ?? this.promptId,
       promptText: promptText ?? this.promptText,
-      isFavorite: isFavorite ?? this.isFavorite,
+      aiReflection: aiReflection ?? this.aiReflection,
+      hasVoiceRecording: hasVoiceRecording ?? this.hasVoiceRecording,
+      voiceTranscript: voiceTranscript ?? this.voiceTranscript,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      safetyFlags: safetyFlags ?? this.safetyFlags,
     );
   }
 
@@ -111,11 +182,18 @@ class JournalEntry extends Equatable {
     title,
     content,
     moodScore,
+    linkedMoodLogId,
     tags,
-    createdAt,
-    updatedAt,
+    isFavorite,
+    isLocked,
     promptId,
     promptText,
-    isFavorite,
+    aiReflection,
+    hasVoiceRecording,
+    voiceTranscript,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    safetyFlags,
   ];
 }

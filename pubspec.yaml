@@ -79,6 +79,7 @@ dependencies:
   share_plus: ^10.1.4
   connectivity_plus: ^6.1.1
   shared_preferences: ^2.3.3
+  record: ^6.1.2
 
 dev_dependencies:
   flutter_test:

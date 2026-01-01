@@ -19,6 +19,9 @@ class Routes {
   static const String exercises = '/exercises';
   static const String settings = '/settings';
   static const String journal = '/journal';
+  static const String journalCalendar = '/journal/calendar';
+  static const String journalInsights = '/journal/insights';
+  static const String journalDetail = '/journal/detail';
   static const String journalEntry = '/journal/entry';
 
   // Nested Routes
