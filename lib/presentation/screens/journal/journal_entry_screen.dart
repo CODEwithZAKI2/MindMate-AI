@@ -158,6 +158,16 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
         );
       }
 
+      // Trigger speech-to-text transcription for voice recordings
+      if (voiceDownloadUrl != null && entryId != null) {
+        // Fire and forget - transcription happens in background
+        aiService.transcribeAudio(
+          audioUrl: voiceDownloadUrl,
+          entryId: entryId,
+          userId: userId,
+        );
+      }
+
       // Generate AI reflection (only for new entries with sufficient content)
       if (_existingEntry == null && content.length >= 50) {
         final result = await aiService.generateReflection(

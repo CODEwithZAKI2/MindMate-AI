@@ -1045,3 +1045,111 @@ Respond in JSON:
     }
   }
 );
+
+/**
+ * Transcribe audio from Firebase Storage URL using Gemini
+ * Downloads audio, sends to Gemini for transcription, updates entry
+ */
+export const transcribeAudio = onCall(
+  { secrets: [geminiApiKey], region: "us-central1" },
+  async (request) => {
+    const { audioUrl, entryId, userId } = request.data;
+
+    if (!audioUrl || !entryId || !userId) {
+      throw new HttpsError(
+        "invalid-argument",
+        "audioUrl, entryId, and userId are required"
+      );
+    }
+
+    try {
+      console.log("[transcribeAudio] Starting transcription for entry:", entryId);
+
+      // Initialize Gemini with audio-capable model
+      const genAI = new GoogleGenerativeAI(geminiApiKey.value());
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.0-flash",
+        safetySettings: [
+          {
+            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+        ],
+      });
+
+      // Extract bucket and path from Firebase Storage URL
+      // New format: https://firebasestorage.googleapis.com/v0/b/{bucket}.firebasestorage.app/o/{path}?...
+      // Old format: https://firebasestorage.googleapis.com/v0/b/{bucket}.appspot.com/o/{path}?...
+      const bucketMatch = audioUrl.match(/\/b\/([^/]+)\//);
+      const pathMatch = audioUrl.match(/\/o\/(.+?)\?/);
+
+      if (!bucketMatch || !pathMatch) {
+        console.error("[transcribeAudio] Invalid URL format:", audioUrl);
+        throw new Error("Invalid storage URL format");
+      }
+
+      const bucketName = bucketMatch[1];
+      const storagePath = decodeURIComponent(pathMatch[1]);
+      console.log("[transcribeAudio] Bucket:", bucketName, "Path:", storagePath);
+
+      const bucket = admin.storage().bucket(bucketName);
+      const file = bucket.file(storagePath);
+      const [audioBuffer] = await file.download();
+      const base64Audio = audioBuffer.toString("base64");
+
+      console.log("[transcribeAudio] Audio downloaded, size:", audioBuffer.length);
+
+      // Send to Gemini for transcription
+      const result = await model.generateContent([
+        {
+          inlineData: {
+            mimeType: "audio/mp4",
+            data: base64Audio,
+          },
+        },
+        {
+          text: `Transcribe this audio recording accurately. 
+          - Output ONLY the transcribed text, nothing else
+          - Include punctuation and proper capitalization
+          - If the audio is in a language other than English, transcribe in that language
+          - If the audio is unclear or silent, respond with "[inaudible]"`,
+        },
+      ]);
+
+      const transcript = result.response.text().trim();
+      console.log("[transcribeAudio] Transcription complete:", transcript.substring(0, 100));
+
+      // Update journal entry with transcript (top-level collection)
+      await admin.firestore()
+        .collection("journal_entries")
+        .doc(entryId)
+        .update({
+          voiceTranscript: transcript,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+      return {
+        success: true,
+        transcript,
+      };
+    } catch (error) {
+      console.error("[transcribeAudio] Error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Transcription failed",
+      };
+    }
+  }
+);

@@ -156,6 +156,32 @@ class JournalAIService {
       return null;
     }
   }
+
+  /// Transcribe audio recording using Gemini
+  /// Returns transcript text or null on error
+  Future<String?> transcribeAudio({
+    required String audioUrl,
+    required String entryId,
+    required String userId,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable('transcribeAudio');
+      final result = await callable.call<Map<String, dynamic>>({
+        'audioUrl': audioUrl,
+        'entryId': entryId,
+        'userId': userId,
+      });
+
+      final data = result.data;
+      if (data['success'] == true) {
+        return data['transcript'] as String?;
+      }
+      return null;
+    } catch (e) {
+      print('Transcription error: $e');
+      return null;
+    }
+  }
 }
 
 /// Result of journal reflection generation
