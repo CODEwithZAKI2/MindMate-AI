@@ -136,8 +136,8 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
     }
 
     final entry = _entry!;
-    final moodColor =
-        entry.moodScore != null ? _moodColors[entry.moodScore! - 1] : null;
+    final moodIndex = entry.moodScore ?? 3; // Default to 'Good' if null
+    final moodColor = _moodColors[moodIndex.clamp(0, _moodColors.length - 1)];
 
     return Scaffold(
       backgroundColor: _surfaceColor,

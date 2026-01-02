@@ -428,8 +428,8 @@ class _JournalCalendarViewState extends ConsumerState<JournalCalendarView> {
   }
 
   Widget _buildEntryCard(JournalEntry entry) {
-    final moodColor =
-        entry.moodScore != null ? _moodColors[entry.moodScore! - 1] : null;
+    final moodIndex = (entry.moodScore ?? 3).clamp(0, _moodColors.length - 1);
+    final moodColor = _moodColors[moodIndex];
 
     return GestureDetector(
       onTap: () => context.push('${Routes.journalDetail}/${entry.id}'),

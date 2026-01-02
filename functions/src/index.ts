@@ -517,6 +517,7 @@ interface JournalReflectionRequest {
   entryId: string;
   content: string;
   userId: string;
+  voiceTranscript?: string;
 }
 
 interface JournalReflectionResponse {
@@ -541,7 +542,7 @@ export const generateJournalReflection = onCall(
       throw new HttpsError("unauthenticated", "User must be authenticated");
     }
 
-    const { entryId, content, userId } = request.data as JournalReflectionRequest;
+    const { entryId, content, userId, voiceTranscript } = request.data as JournalReflectionRequest;
 
     if (!entryId || !content || !userId) {
       throw new HttpsError("invalid-argument", "Missing required fields");
@@ -551,8 +552,9 @@ export const generateJournalReflection = onCall(
       throw new HttpsError("permission-denied", "User ID mismatch");
     }
 
-    // Minimum content length for reflection
-    if (content.length < 50) {
+    // Minimum content length for reflection (unless voice transcript exists)
+    const totalContentLength = content.length + (voiceTranscript?.length ?? 0);
+    if (totalContentLength < 50) {
       return {
         success: true,
         safe: true,
@@ -562,7 +564,8 @@ export const generateJournalReflection = onCall(
 
     try {
       // SAFETY CHECK: Detect crisis before AI processing
-      const isCrisis = detectCrisis(content);
+      const combinedContent = voiceTranscript ? `${content}\n\nVoice Note: ${voiceTranscript}` : content;
+      const isCrisis = detectCrisis(combinedContent);
 
       if (isCrisis) {
         console.log("[generateJournalReflection] Crisis detected for entry:", entryId);
@@ -603,8 +606,13 @@ export const generateJournalReflection = onCall(
         },
       });
 
+      // Build content including voice transcript if available
+      const entryContent = voiceTranscript
+        ? `Written Entry: ${content}\n\nVoice Note Transcript: ${voiceTranscript}`
+        : content;
+
       const prompt = `You are a supportive, non-clinical wellness companion.
-The user just wrote a journal entry. Provide:
+The user just wrote a journal entry${voiceTranscript ? ' (which includes a voice note transcript)' : ''}. Provide:
 1. A brief emotional tone summary (1 sentence, max 20 words)
 2. 1-2 gentle reflection questions to encourage self-awareness
 
@@ -613,8 +621,10 @@ Rules:
 - Use warm, encouraging language
 - Avoid assumptions about their situation
 - Be compassionate and supportive
+- Consider both written and spoken content equally
 
-Entry: ${content}
+Entry Content:
+${entryContent}
 
 Respond in this exact JSON format:
 {

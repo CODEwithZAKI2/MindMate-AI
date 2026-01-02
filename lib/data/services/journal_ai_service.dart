@@ -13,6 +13,7 @@ class JournalAIService {
     required String entryId,
     required String content,
     required String userId,
+    String? voiceTranscript,
   }) async {
     try {
       final callable = _functions.httpsCallable('generateJournalReflection');
@@ -20,6 +21,7 @@ class JournalAIService {
         'entryId': entryId,
         'content': content,
         'userId': userId,
+        if (voiceTranscript != null) 'voiceTranscript': voiceTranscript,
       });
 
       final data = result.data;
