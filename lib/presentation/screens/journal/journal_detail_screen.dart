@@ -344,73 +344,97 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
             : 0.0;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(50),
       ),
       child: Row(
         children: [
-          // Play button
+          // Play button - minimal circle
           GestureDetector(
             onTap: _togglePlayPause,
             child: Container(
-              width: 44,
-              height: 44,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [_accentColor, _accentColor.withOpacity(0.8)],
-                ),
+                color: _textColor,
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                 color: Colors.white,
-                size: 24,
+                size: 22,
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          // Waveform / progress
+          const SizedBox(width: 14),
+          // Elegant waveform
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Animated waveform bars
-                SizedBox(
-                  height: 32,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: List.generate(30, (i) {
-                      final isActive = i / 30 <= progress;
-                      return Container(
-                        width: 3,
-                        height: 10 + (i % 5) * 4.0 + (i % 3) * 3.0,
-                        decoration: BoxDecoration(
-                          color: isActive ? _accentColor : Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-              ],
+            child: SizedBox(
+              height: 28,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(35, (i) {
+                  final isActive = i / 35 <= progress;
+                  // Create organic wave pattern
+                  final heights = [
+                    4.0,
+                    8.0,
+                    14.0,
+                    20.0,
+                    26.0,
+                    20.0,
+                    14.0,
+                    8.0,
+                    4.0,
+                    10.0,
+                    18.0,
+                    24.0,
+                    18.0,
+                    10.0,
+                    6.0,
+                    12.0,
+                    22.0,
+                    16.0,
+                    8.0,
+                    14.0,
+                    20.0,
+                    12.0,
+                    16.0,
+                    24.0,
+                    18.0,
+                    10.0,
+                    6.0,
+                    14.0,
+                    22.0,
+                    16.0,
+                    8.0,
+                    12.0,
+                    18.0,
+                    10.0,
+                    6.0,
+                  ];
+                  return Container(
+                    width: 2.5,
+                    height: heights[i % heights.length],
+                    decoration: BoxDecoration(
+                      color: isActive ? _textColor : Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  );
+                }),
+              ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           // Duration
           Text(
             _formatDuration(_audioDuration),
             style: TextStyle(
               fontSize: 13,
+              fontWeight: FontWeight.w500,
               color: _subtleColor,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
@@ -568,43 +592,35 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
   Widget _buildBottomBar() {
     return Container(
       padding: EdgeInsets.only(
-        left: 32,
-        right: 32,
+        left: 24,
+        right: 24,
         top: 16,
         bottom: MediaQuery.of(context).padding.bottom + 16,
       ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
+      // Transparent - no white bar background
+      color: Colors.transparent,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Edit button
-          _buildActionButton(
-            icon: Icons.edit_rounded,
+          _buildFloatingActionIcon(
+            icon: Icons.edit_outlined,
             onTap:
                 () => context.push('${Routes.journalEntry}/${widget.entryId}'),
           ),
-          const SizedBox(width: 32),
+          const SizedBox(width: 24),
           // Share button
-          _buildActionButton(
-            icon: Icons.share_rounded,
+          _buildFloatingActionIcon(
+            icon: Icons.ios_share_outlined,
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Share coming soon')),
               );
             },
           ),
-          const SizedBox(width: 32),
+          const SizedBox(width: 24),
           // Delete button
-          _buildActionButton(
+          _buildFloatingActionIcon(
             icon: Icons.delete_outline_rounded,
             onTap: _deleteEntry,
             isDestructive: true,
@@ -614,7 +630,7 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
     );
   }
 
-  Widget _buildActionButton({
+  Widget _buildFloatingActionIcon({
     required IconData icon,
     required VoidCallback onTap,
     bool isDestructive = false,
@@ -624,13 +640,20 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isDestructive ? Colors.red.shade50 : Colors.grey.shade50,
+          color: isDestructive ? const Color(0xFFFEE2E2) : Colors.white,
           shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Icon(
           icon,
           size: 22,
-          color: isDestructive ? Colors.red.shade400 : _textColor,
+          color: isDestructive ? const Color(0xFFEF4444) : _subtleColor,
         ),
       ),
     );
