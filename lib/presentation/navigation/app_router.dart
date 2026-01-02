@@ -53,6 +53,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: Routes.splash,
     debugLogDiagnostics: true,
+    observers: [JournalScreen.routeObserver],
     routes: [
       // Splash & Onboarding
       GoRoute(

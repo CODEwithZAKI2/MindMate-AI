@@ -12,12 +12,16 @@ import '../../../core/constants/routes.dart';
 class JournalScreen extends ConsumerStatefulWidget {
   const JournalScreen({super.key});
 
+  /// Route observer for auto-refresh functionality
+  static final RouteObserver<ModalRoute<void>> routeObserver =
+      RouteObserver<ModalRoute<void>>();
+
   @override
   ConsumerState<JournalScreen> createState() => _JournalScreenState();
 }
 
 class _JournalScreenState extends ConsumerState<JournalScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, RouteAware {
   String _searchQuery = '';
   bool _showSearch = false;
   final _searchController = TextEditingController();
@@ -42,10 +46,37 @@ class _JournalScreenState extends ConsumerState<JournalScreen>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Subscribe to route changes
+    final route = ModalRoute.of(context);
+    if (route != null) {
+      JournalScreen.routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
   void dispose() {
+    JournalScreen.routeObserver.unsubscribe(this);
     _searchController.dispose();
     _fabController.dispose();
     super.dispose();
+  }
+
+  // Called when returning to this screen from another screen
+  @override
+  void didPopNext() {
+    super.didPopNext();
+    _refreshData();
+  }
+
+  void _refreshData() {
+    final userId = ref.read(currentUserIdProvider);
+    if (userId != null) {
+      // Invalidate providers to trigger refresh
+      ref.invalidate(journalStatisticsProvider(userId));
+      ref.invalidate(dailyPromptProvider);
+    }
   }
 
   @override
