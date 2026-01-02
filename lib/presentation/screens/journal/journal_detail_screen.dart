@@ -604,14 +604,14 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
         children: [
           // Edit button
           _buildFloatingActionIcon(
-            icon: Icons.edit_outlined,
+            icon: Icons.mode_edit_outline_rounded,
             onTap:
                 () => context.push('${Routes.journalEntry}/${widget.entryId}'),
           ),
           const SizedBox(width: 24),
           // Share button
           _buildFloatingActionIcon(
-            icon: Icons.ios_share_outlined,
+            icon: Icons.share_outlined,
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Share coming soon')),
@@ -621,7 +621,7 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
           const SizedBox(width: 24),
           // Delete button
           _buildFloatingActionIcon(
-            icon: Icons.delete_outline_rounded,
+            icon: Icons.delete_forever_outlined,
             onTap: _deleteEntry,
             isDestructive: true,
           ),

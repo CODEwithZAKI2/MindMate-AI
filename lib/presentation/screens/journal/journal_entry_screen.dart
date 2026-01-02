@@ -674,54 +674,39 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen>
 
   Widget _buildBottomToolbar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      // Transparent background - no white bar
+      color: Colors.transparent,
       child: SafeArea(
         top: false,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // Mic button (voice note)
             _buildToolbarButton(
-              icon: Icons.mic_none_rounded,
+              icon: Icons.mic_none_outlined,
               onTap: _startRecording,
             ),
+            const SizedBox(width: 16),
             // AI prompt button
             _buildToolbarButton(
-              icon: Icons.auto_awesome_rounded,
+              icon: Icons.auto_awesome_outlined,
               onTap: _showAIPrompts,
             ),
+            const SizedBox(width: 16),
             // Image picker button
-            GestureDetector(
+            _buildToolbarButton(
+              icon: Icons.photo_library_outlined,
               onTap: _pickImage,
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.image_outlined,
-                  color: _primaryColor,
-                  size: 24,
-                ),
-              ),
             ),
+            const SizedBox(width: 16),
             // Emoji/mood button
             _buildToolbarButton(
-              icon: Icons.emoji_emotions_outlined,
+              icon: Icons.sentiment_satisfied_alt_outlined,
               onTap: _showMoodPicker,
             ),
-            // Save button
+            const SizedBox(width: 16),
+            // Save button - accent gradient
             GestureDetector(
               onTap: _saveEntry,
               child: Container(
@@ -733,14 +718,14 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen>
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: _primaryColor.withOpacity(0.4),
+                      color: _primaryColor.withOpacity(0.3),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 child: const Icon(
-                  Icons.arrow_forward_rounded,
+                  Icons.check_rounded,
                   color: Colors.white,
                   size: 22,
                 ),
@@ -759,12 +744,19 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: Colors.white,
           shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        child: Icon(icon, color: _textColor, size: 22),
+        child: Icon(icon, color: _subtleColor, size: 22),
       ),
     );
   }
