@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../domain/entities/journal_entry.dart';
 import '../../../data/services/journal_ai_service.dart';
+import '../../../data/services/voice_recording_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/journal_provider.dart';
 import '../../widgets/voice_recording_widget.dart';
@@ -94,7 +95,7 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
   Future<void> _saveEntry() async {
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
-    if (title.isEmpty && content.isEmpty) {
+    if (title.isEmpty && content.isEmpty && _voiceNotePath == null) {
       _showSnackBar('Please write something first', isError: true);
       return;
     }
@@ -109,6 +110,19 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
       final now = DateTime.now();
       String? entryId;
 
+      // Upload voice recording to Firebase Storage if exists
+      String? voiceDownloadUrl;
+      if (_voiceNotePath != null) {
+        final voiceService = VoiceRecordingService();
+        voiceDownloadUrl = await voiceService.uploadToStorage(
+          _voiceNotePath!,
+          userId,
+        );
+        if (voiceDownloadUrl == null) {
+          _showSnackBar('Failed to upload voice note', isError: true);
+        }
+      }
+
       if (_existingEntry != null) {
         await notifier.updateEntry(
           _existingEntry!.copyWith(
@@ -118,6 +132,9 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
             tags: _selectedTags,
             updatedAt: now,
             isFavorite: _isFavorite,
+            isLocked: _isLocked,
+            hasVoiceRecording: voiceDownloadUrl != null,
+            voiceFilePath: voiceDownloadUrl,
           ),
         );
         entryId = _existingEntry!.id;
@@ -134,6 +151,9 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
             updatedAt: now,
             promptText: _promptText,
             isFavorite: _isFavorite,
+            isLocked: _isLocked,
+            hasVoiceRecording: voiceDownloadUrl != null,
+            voiceFilePath: voiceDownloadUrl,
           ),
         );
       }
@@ -763,21 +783,48 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen> {
             ),
           ),
           const SizedBox(height: 12),
+          if (_voiceNotePath != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _primaryColor.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _primaryColor.withOpacity(0.15)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.mic_rounded, color: _primaryColor, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Voice note recorded',
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _voiceNotePath = null),
+                      child: Icon(
+                        Icons.close,
+                        color: Colors.grey.shade400,
+                        size: 18,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           VoiceRecordingWidget(
             onRecordingComplete: (filePath) {
               if (filePath != null) {
                 setState(() {
                   _hasChanges = true;
-                  // Add a note that voice was recorded
-                  final currentContent = _contentController.text;
-                  if (currentContent.isNotEmpty &&
-                      !currentContent.endsWith('\n')) {
-                    _contentController.text =
-                        '$currentContent\n\n🎙️ [Voice note attached]';
-                  } else {
-                    _contentController.text =
-                        '${currentContent}🎙️ [Voice note attached]';
-                  }
+                  _voiceNotePath = filePath;
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(

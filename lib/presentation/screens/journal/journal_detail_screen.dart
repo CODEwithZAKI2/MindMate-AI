@@ -6,6 +6,7 @@ import '../../../domain/entities/journal_entry.dart';
 import '../../../core/constants/routes.dart';
 import '../../../data/services/biometric_auth_service.dart';
 import '../../providers/journal_provider.dart';
+import '../../widgets/audio_playback_widget.dart';
 
 /// Journal Detail Screen - Read-only view with AI reflection
 class JournalDetailScreen extends ConsumerStatefulWidget {
@@ -313,6 +314,58 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
           ),
           const SizedBox(height: 32),
 
+          // Voice Note Playback (if available)
+          if (entry.hasVoiceRecording && entry.voiceFilePath != null) ...[
+            _buildVoicePlayback(entry.voiceFilePath!),
+            const SizedBox(height: 24),
+          ],
+
+          // Voice Transcript (if available)
+          if (entry.voiceTranscript != null &&
+              entry.voiceTranscript!.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.text_snippet_outlined,
+                        size: 16,
+                        color: Colors.grey.shade500,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Voice Transcript',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    entry.voiceTranscript!,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                      height: 1.6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+
           // AI Reflection (if available)
           if (entry.hasReflection) _buildAIReflection(entry),
 
@@ -524,5 +577,9 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
       default:
         return Icons.sentiment_neutral_rounded;
     }
+  }
+
+  Widget _buildVoicePlayback(String filePath) {
+    return AudioPlaybackWidget(audioPath: filePath);
   }
 }

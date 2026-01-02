@@ -1,17 +1,17 @@
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 /// Service for voice recording and transcription
 class VoiceRecordingService {
   final AudioRecorder _recorder = AudioRecorder();
-  final FirebaseFunctions _functions;
+  final FirebaseStorage _storage;
   String? _currentFilePath;
   bool _isRecording = false;
 
-  VoiceRecordingService({FirebaseFunctions? functions})
-    : _functions = functions ?? FirebaseFunctions.instance;
+  VoiceRecordingService({FirebaseStorage? storage})
+    : _storage = storage ?? FirebaseStorage.instance;
 
   bool get isRecording => _isRecording;
   String? get currentFilePath => _currentFilePath;
@@ -83,31 +83,56 @@ class VoiceRecordingService {
     _currentFilePath = null;
   }
 
-  /// Get recording duration stream
-  Stream<Duration> get durationStream =>
-      Stream.periodic(const Duration(milliseconds: 100), (_) => Duration.zero);
-
-  /// Transcribe audio file using Cloud Function
-  /// Returns transcribed text or null on error
-  Future<String?> transcribeAudio(String filePath) async {
+  /// Upload audio file to Firebase Storage
+  /// Returns the download URL or null on error
+  Future<String?> uploadToStorage(String localPath, String userId) async {
     try {
-      final file = File(filePath);
-      if (!await file.exists()) return null;
+      print('Voice upload: Starting upload for $localPath');
+      final file = File(localPath);
+      if (!await file.exists()) {
+        print('Voice upload: File does not exist at $localPath');
+        return null;
+      }
 
-      // Read file as bytes and convert to base64
-      final bytes = await file.readAsBytes();
-      final base64Audio =
-          bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+      final fileSize = await file.length();
+      print('Voice upload: File exists, size: $fileSize bytes');
 
-      // This would call a Cloud Function that uses Google Speech-to-Text
-      // For now, we'll use the simpler approach of just noting the audio exists
-      // Full transcription requires setting up Google Cloud Speech-to-Text API
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'voice_$timestamp.m4a';
+      final storagePath = 'voice_notes/$userId/$fileName';
+      print('Voice upload: Uploading to $storagePath');
 
-      return null; // Placeholder - actual transcription requires more setup
-    } catch (e) {
+      final ref = _storage.ref().child(storagePath);
+      final uploadTask = await ref.putFile(
+        file,
+        SettableMetadata(contentType: 'audio/mp4'), // m4a uses mp4 container
+      );
+
+      print('Voice upload: Upload state: ${uploadTask.state}');
+
+      if (uploadTask.state == TaskState.success) {
+        final downloadUrl = await ref.getDownloadURL();
+        print('Voice upload: Success! URL: $downloadUrl');
+
+        // Delete local temp file after successful upload
+        try {
+          await file.delete();
+        } catch (_) {}
+
+        return downloadUrl;
+      }
+      print('Voice upload: Upload did not succeed, state: ${uploadTask.state}');
+      return null;
+    } catch (e, st) {
+      print('Voice upload: ERROR - $e');
+      print('Voice upload: Stack trace - $st');
       return null;
     }
   }
+
+  /// Get recording duration stream
+  Stream<Duration> get durationStream =>
+      Stream.periodic(const Duration(milliseconds: 100), (_) => Duration.zero);
 
   /// Clean up resources
   void dispose() {

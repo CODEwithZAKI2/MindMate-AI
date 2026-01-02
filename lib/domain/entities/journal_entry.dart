@@ -50,6 +50,7 @@ class JournalEntry extends Equatable {
 
   // Voice
   final bool hasVoiceRecording;
+  final String? voiceFilePath;
   final String? voiceTranscript;
 
   // Timestamps
@@ -74,6 +75,7 @@ class JournalEntry extends Equatable {
     this.promptText,
     this.aiReflection,
     this.hasVoiceRecording = false,
+    this.voiceFilePath,
     this.voiceTranscript,
     required this.createdAt,
     required this.updatedAt,
@@ -147,6 +149,7 @@ class JournalEntry extends Equatable {
     String? promptText,
     AIReflection? aiReflection,
     bool? hasVoiceRecording,
+    String? voiceFilePath,
     String? voiceTranscript,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -167,6 +170,7 @@ class JournalEntry extends Equatable {
       promptText: promptText ?? this.promptText,
       aiReflection: aiReflection ?? this.aiReflection,
       hasVoiceRecording: hasVoiceRecording ?? this.hasVoiceRecording,
+      voiceFilePath: voiceFilePath ?? this.voiceFilePath,
       voiceTranscript: voiceTranscript ?? this.voiceTranscript,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -190,6 +194,7 @@ class JournalEntry extends Equatable {
     promptText,
     aiReflection,
     hasVoiceRecording,
+    voiceFilePath,
     voiceTranscript,
     createdAt,
     updatedAt,

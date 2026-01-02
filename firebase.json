@@ -1,1 +1,47 @@
-{"firestore":{"rules":"firestore.rules","indexes":"firestore.indexes.json"},"functions":[{"source":"functions","codebase":"default","ignore":["node_modules",".git","firebase-debug.log","firebase-debug.*.log"],"predeploy":["npm --prefix \"$RESOURCE_DIR\" run build"]}],"flutter":{"platforms":{"android":{"default":{"projectId":"mindmate-ai-699b5","appId":"1:137877213010:android:6fc05464f968a11527348b","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"mindmate-ai-699b5","configurations":{"android":"1:137877213010:android:6fc05464f968a11527348b","ios":"1:137877213010:ios:8796fcf94ebb1a3627348b","macos":"1:137877213010:ios:8796fcf94ebb1a3627348b","web":"1:137877213010:web:88b0a343f281739e27348b","windows":"1:137877213010:web:2df918894710145b27348b"}}}}}}
+{
+    "firestore": {
+        "rules": "firestore.rules",
+        "indexes": "firestore.indexes.json"
+    },
+    "storage": {
+        "rules": "storage.rules"
+    },
+    "functions": [
+        {
+            "source": "functions",
+            "codebase": "default",
+            "ignore": [
+                "node_modules",
+                ".git",
+                "firebase-debug.log",
+                "firebase-debug.*.log"
+            ],
+            "predeploy": [
+                "npm --prefix \"$RESOURCE_DIR\" run build"
+            ]
+        }
+    ],
+    "flutter": {
+        "platforms": {
+            "android": {
+                "default": {
+                    "projectId": "mindmate-ai-699b5",
+                    "appId": "1:137877213010:android:6fc05464f968a11527348b",
+                    "fileOutput": "android/app/google-services.json"
+                }
+            },
+            "dart": {
+                "lib/firebase_options.dart": {
+                    "projectId": "mindmate-ai-699b5",
+                    "configurations": {
+                        "android": "1:137877213010:android:6fc05464f968a11527348b",
+                        "ios": "1:137877213010:ios:8796fcf94ebb1a3627348b",
+                        "macos": "1:137877213010:ios:8796fcf94ebb1a3627348b",
+                        "web": "1:137877213010:web:88b0a343f281739e27348b",
+                        "windows": "1:137877213010:web:2df918894710145b27348b"
+                    }
+                }
+            }
+        }
+    }
+}

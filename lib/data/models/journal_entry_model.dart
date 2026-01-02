@@ -16,6 +16,7 @@ class JournalEntryModel {
   final String? promptText;
   final Map<String, dynamic>? aiReflection;
   final bool hasVoiceRecording;
+  final String? voiceFilePath;
   final String? voiceTranscript;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -36,6 +37,7 @@ class JournalEntryModel {
     this.promptText,
     this.aiReflection,
     this.hasVoiceRecording = false,
+    this.voiceFilePath,
     this.voiceTranscript,
     required this.createdAt,
     required this.updatedAt,
@@ -68,6 +70,7 @@ class JournalEntryModel {
               }
               : null,
       hasVoiceRecording: entity.hasVoiceRecording,
+      voiceFilePath: entity.voiceFilePath,
       voiceTranscript: entity.voiceTranscript,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
@@ -101,6 +104,7 @@ class JournalEntryModel {
       promptText: data['promptText'],
       aiReflection: data['aiReflection'],
       hasVoiceRecording: data['hasVoiceRecording'] ?? false,
+      voiceFilePath: data['voiceFilePath'],
       voiceTranscript: data['voiceTranscript'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -124,6 +128,7 @@ class JournalEntryModel {
       'promptText': promptText,
       'aiReflection': aiReflection,
       'hasVoiceRecording': hasVoiceRecording,
+      'voiceFilePath': voiceFilePath,
       'voiceTranscript': voiceTranscript,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
@@ -171,6 +176,7 @@ class JournalEntryModel {
       promptText: promptText,
       aiReflection: reflection,
       hasVoiceRecording: hasVoiceRecording,
+      voiceFilePath: voiceFilePath,
       voiceTranscript: voiceTranscript,
       createdAt: createdAt,
       updatedAt: updatedAt,
