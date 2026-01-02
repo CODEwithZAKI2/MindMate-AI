@@ -447,56 +447,70 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen>
 
   Widget _buildContentArea() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 20),
-          // Title input - elegant serif style
+          const SizedBox(height: 24),
+          // Title input - elegant italic serif style like Dribbble
           TextField(
             controller: _titleController,
             focusNode: _titleFocus,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: _textColor,
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w600,
+              fontStyle: FontStyle.italic,
+              color: Color(0xFF5D4E37),
               height: 1.3,
-              fontFamily: 'Georgia', // Serif font
+              fontFamily: 'Georgia',
             ),
             decoration: InputDecoration(
               hintText: 'Your journal title...',
               hintStyle: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-                color: _subtleColor.withOpacity(0.5),
+                fontSize: 32,
+                fontWeight: FontWeight.w600,
+                fontStyle: FontStyle.italic,
+                color: Color(0xFF5D4E37).withOpacity(0.3),
                 fontFamily: 'Georgia',
               ),
               border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              filled: false,
+              fillColor: Colors.transparent,
               contentPadding: EdgeInsets.zero,
+              isDense: true,
             ),
             maxLines: null,
           ),
           const SizedBox(height: 24),
-          // Content input
+          // Content input - seamless like note app
           TextField(
             controller: _contentController,
             focusNode: _contentFocus,
             style: TextStyle(
-              fontSize: 16,
-              color: _textColor.withOpacity(0.85),
+              fontSize: 17,
+              color: Color(0xFF4A4A4A),
               height: 1.7,
+              letterSpacing: 0.2,
             ),
             decoration: InputDecoration(
               hintText: 'What\'s on your mind today? Write freely...',
               hintStyle: TextStyle(
                 fontSize: 16,
-                color: _subtleColor.withOpacity(0.5),
+                color: Colors.grey.shade400,
+                height: 1.8,
               ),
               border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              filled: false,
+              fillColor: Colors.transparent,
               contentPadding: EdgeInsets.zero,
+              isDense: true,
             ),
             maxLines: null,
-            minLines: 10,
+            minLines: 15,
           ),
           // Voice note indicator
           if (_voiceNotePath != null) _buildVoiceNoteIndicator(),
