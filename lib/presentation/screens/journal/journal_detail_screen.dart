@@ -1,14 +1,15 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../../../domain/entities/journal_entry.dart';
 import '../../../core/constants/routes.dart';
-import '../../../data/services/biometric_auth_service.dart';
 import '../../providers/journal_provider.dart';
-import '../../widgets/audio_playback_widget.dart';
 
-/// Journal Detail Screen - Read-only view with AI reflection
+/// Journal Detail Screen - Dribbble-inspired modern design
+/// Clean, minimal, photo-forward layout with integrated voice playback
 class JournalDetailScreen extends ConsumerStatefulWidget {
   final String entryId;
 
@@ -22,25 +23,42 @@ class JournalDetailScreen extends ConsumerStatefulWidget {
 class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
   JournalEntry? _entry;
   bool _isLoading = true;
-  bool _isUnlocked = false;
-  final BiometricAuthService _authService = BiometricAuthService();
 
-  static const _primaryColor = Color(0xFF6366F1);
-  static const _secondaryColor = Color(0xFF8B5CF6);
-  static const _surfaceColor = Color(0xFFFAFAFC);
+  // Audio player
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isPlaying = false;
+  Duration _audioDuration = Duration.zero;
+  Duration _audioPosition = Duration.zero;
 
-  static const _moodColors = [
-    Color(0xFFEF4444),
-    Color(0xFFF97316),
-    Color(0xFFEAB308),
-    Color(0xFF22C55E),
-    Color(0xFF6366F1),
-  ];
+  // Design colors
+  static const _accentColor = Color(0xFFB8860B); // Gold/brown like Dribbble
+  static const _backgroundColor = Color(0xFFFAF9F7);
+  static const _textColor = Color(0xFF2D2D2D);
+  static const _subtleColor = Color(0xFF9CA3AF);
 
   @override
   void initState() {
     super.initState();
     _loadEntry();
+    _setupAudioPlayer();
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  void _setupAudioPlayer() {
+    _audioPlayer.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _audioDuration = d);
+    });
+    _audioPlayer.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _audioPosition = p);
+    });
+    _audioPlayer.onPlayerStateChanged.listen((s) {
+      if (mounted) setState(() => _isPlaying = s == PlayerState.playing);
+    });
   }
 
   Future<void> _loadEntry() async {
@@ -48,376 +66,421 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
       final entry = await ref
           .read(journalNotifierProvider.notifier)
           .getEntry(widget.entryId);
-
-      // Check if entry is locked and needs biometric auth
-      if (entry != null && entry.isLocked) {
-        final authenticated = await _authService.authenticate(
-          reason: 'Authenticate to view this locked entry',
-        );
-        if (!authenticated) {
-          if (mounted) context.pop();
-          return;
-        }
-        setState(() => _isUnlocked = true);
-      } else {
-        setState(() => _isUnlocked = true);
-      }
-
       setState(() {
         _entry = entry;
         _isLoading = false;
       });
+
+      // Load audio if exists
+      if (entry.voiceFilePath != null) {
+        await _audioPlayer.setSourceUrl(entry.voiceFilePath!);
+        final dur = await _audioPlayer.getDuration();
+        if (dur != null && mounted) setState(() => _audioDuration = dur);
+      }
     } catch (e) {
       setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+    }
+  }
+
+  Future<void> _togglePlayPause() async {
+    if (_isPlaying) {
+      await _audioPlayer.pause();
+    } else {
+      if (_entry?.voiceFilePath != null) {
+        if (_audioPosition >=
+            _audioDuration - const Duration(milliseconds: 100)) {
+          await _audioPlayer.seek(Duration.zero);
+        }
+        await _audioPlayer.play(UrlSource(_entry!.voiceFilePath!));
       }
     }
   }
 
-  Future<void> _deleteEntry() async {
+  void _deleteEntry() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
           (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text('Delete this entry?'),
-            content: const Text('You can recover it within 30 days.'),
+            title: const Text('Delete Entry?'),
+            content: const Text('This entry will be moved to trash.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
                 child: const Text('Cancel'),
               ),
-              FilledButton(
+              TextButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.red.shade400,
-                ),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
                 child: const Text('Delete'),
               ),
             ],
           ),
     );
-    if (confirmed != true) return;
 
-    try {
+    if (confirmed == true && mounted) {
       await ref
           .read(journalNotifierProvider.notifier)
           .deleteEntry(widget.entryId);
-      if (mounted) context.pop();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
+      context.pop();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: _surfaceColor,
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        backgroundColor: _backgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     if (_entry == null) {
       return Scaffold(
-        backgroundColor: _surfaceColor,
-        appBar: AppBar(backgroundColor: _surfaceColor, elevation: 0),
+        backgroundColor: _backgroundColor,
+        appBar: AppBar(backgroundColor: _backgroundColor, elevation: 0),
         body: const Center(child: Text('Entry not found')),
       );
     }
 
     final entry = _entry!;
-    final moodIndex = entry.moodScore ?? 3; // Default to 'Good' if null
-    final moodColor = _moodColors[moodIndex.clamp(0, _moodColors.length - 1)];
 
     return Scaffold(
-      backgroundColor: _surfaceColor,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          _buildAppBar(entry),
-          SliverToBoxAdapter(child: _buildContent(entry, moodColor)),
-        ],
-      ),
-      floatingActionButton: _buildEditFAB(),
-    );
-  }
-
-  Widget _buildAppBar(JournalEntry entry) {
-    return SliverAppBar(
-      backgroundColor: _surfaceColor,
-      elevation: 0,
-      pinned: true,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-        onPressed: () => context.pop(),
-      ),
-      actions: [
-        IconButton(
-          icon: Icon(
-            entry.isFavorite
-                ? Icons.favorite_rounded
-                : Icons.favorite_border_rounded,
-            color:
-                entry.isFavorite ? Colors.red.shade400 : Colors.grey.shade400,
-          ),
-          onPressed: () async {
-            await ref
-                .read(journalNotifierProvider.notifier)
-                .toggleFavorite(entry.id, !entry.isFavorite);
-            _loadEntry();
-          },
-        ),
-        PopupMenuButton<String>(
-          icon: Icon(Icons.more_vert_rounded, color: Colors.grey.shade600),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          onSelected: (value) {
-            if (value == 'delete') _deleteEntry();
-          },
-          itemBuilder:
-              (ctx) => [
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.delete_outline_rounded,
-                        color: Colors.red,
-                        size: 20,
+      backgroundColor: _backgroundColor,
+      body: Stack(
+        children: [
+          CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // Clean app bar with just back button
+              SliverAppBar(
+                backgroundColor: _backgroundColor,
+                elevation: 0,
+                pinned: true,
+                leading: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: GestureDetector(
+                    onTap: () => context.pop(),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                          ),
+                        ],
                       ),
-                      SizedBox(width: 8),
-                      Text('Delete', style: TextStyle(color: Colors.red)),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        size: 18,
+                        color: _textColor,
+                      ),
+                    ),
+                  ),
+                ),
+                actions: [
+                  if (entry.isFavorite)
+                    Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(
+                        Icons.favorite_rounded,
+                        color: Colors.red.shade400,
+                        size: 22,
+                      ),
+                    ),
+                ],
+              ),
+              // Content
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Centered date in accent color
+                      Center(
+                        child: Text(
+                          DateFormat('MMMM d, yyyy').format(entry.createdAt),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: _accentColor,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // Large bold title
+                      Center(
+                        child: Text(
+                          entry.title,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: _textColor,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Tag pills
+                      if (entry.tags.isNotEmpty) _buildTagPills(entry.tags),
+                      const SizedBox(height: 24),
+                      // Image (if exists)
+                      if (entry.imageUrl != null) _buildImage(entry.imageUrl!),
+                      // Voice player (if exists)
+                      if (entry.voiceFilePath != null) _buildVoicePlayer(),
+                      const SizedBox(height: 24),
+                      // Content text
+                      Text(
+                        entry.content,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: _textColor.withOpacity(0.8),
+                          height: 1.8,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      // Voice transcript
+                      if (entry.voiceTranscript != null &&
+                          entry.voiceTranscript!.isNotEmpty)
+                        _buildTranscript(entry.voiceTranscript!),
+                      // AI Reflection
+                      if (entry.aiReflection != null)
+                        _buildAIReflection(entry.aiReflection!),
+                      const SizedBox(height: 120),
                     ],
                   ),
                 ),
-              ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildContent(JournalEntry entry, Color? moodColor) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Date and time
-          Row(
-            children: [
-              Icon(
-                Icons.calendar_today_rounded,
-                size: 14,
-                color: Colors.grey.shade400,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                DateFormat('EEEE, MMMM d, y • h:mm a').format(entry.createdAt),
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
             ],
           ),
-          const SizedBox(height: 20),
-
-          // Title
-          Text(
-            entry.title,
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w700,
-              color: Colors.grey.shade900,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Mood and tags row
-          if (moodColor != null || entry.tags.isNotEmpty) ...[
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (moodColor != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: moodColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _getMoodIcon(entry.moodScore!),
-                          size: 16,
-                          color: moodColor,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          entry.moodLabel ?? '',
-                          style: TextStyle(
-                            color: moodColor,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ...entry.tags.map(
-                  (tag) => Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '#$tag',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-          ],
-
-          // Content
-          Text(
-            entry.content,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade700,
-              height: 1.8,
-            ),
-          ),
-          const SizedBox(height: 32),
-
-          // Voice Note Playback (if available)
-          if (entry.hasVoiceRecording && entry.voiceFilePath != null) ...[
-            _buildVoicePlayback(entry.voiceFilePath!),
-            const SizedBox(height: 24),
-          ],
-
-          // Voice Transcript (if available)
-          if (entry.voiceTranscript != null &&
-              entry.voiceTranscript!.isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.text_snippet_outlined,
-                        size: 16,
-                        color: Colors.grey.shade500,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Voice Transcript',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    entry.voiceTranscript!,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade700,
-                      height: 1.6,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-
-          // AI Reflection (if available)
-          if (entry.hasReflection) _buildAIReflection(entry),
-
-          // Crisis flag note (if detected)
-          if (entry.safetyFlags?.crisisDetected == true) _buildCrisisNote(),
-
-          // Prompt badge
-          if (entry.isFromPrompt) ...[
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: _primaryColor.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.auto_awesome, size: 14, color: _primaryColor),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Written from AI Prompt',
-                    style: TextStyle(
-                      color: _primaryColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          // Bottom action bar
+          Positioned(left: 0, right: 0, bottom: 0, child: _buildBottomBar()),
         ],
       ),
     );
   }
 
-  Widget _buildAIReflection(JournalEntry entry) {
-    final reflection = entry.aiReflection!;
+  Widget _buildTagPills(List<String> tags) {
+    return Center(
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        alignment: WrapAlignment.center,
+        children:
+            tags.map((tag) {
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Text(
+                  tag,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: _textColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              );
+            }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildImage(String imageUrl) {
     return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: 250,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Container(
+              height: 250,
+              color: Colors.grey.shade100,
+              child: const Center(child: CircularProgressIndicator()),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              height: 250,
+              color: Colors.grey.shade100,
+              child: Icon(Icons.broken_image, color: _subtleColor, size: 48),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVoicePlayer() {
+    final progress =
+        _audioDuration.inMilliseconds > 0
+            ? _audioPosition.inMilliseconds / _audioDuration.inMilliseconds
+            : 0.0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Play button
+          GestureDetector(
+            onTap: _togglePlayPause,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [_accentColor, _accentColor.withOpacity(0.8)],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Waveform / progress
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Animated waveform bars
+                SizedBox(
+                  height: 32,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: List.generate(30, (i) {
+                      final isActive = i / 30 <= progress;
+                      return Container(
+                        width: 3,
+                        height: 10 + (i % 5) * 4.0 + (i % 3) * 3.0,
+                        decoration: BoxDecoration(
+                          color: isActive ? _accentColor : Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Duration
+          Text(
+            _formatDuration(_audioDuration),
+            style: TextStyle(
+              fontSize: 13,
+              color: _subtleColor,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(Duration duration) {
+    final mins = duration.inMinutes.toString().padLeft(2, '0');
+    final secs = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    return '$mins:$secs';
+  }
+
+  Widget _buildTranscript(String transcript) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.notes_rounded, size: 18, color: _subtleColor),
+              const SizedBox(width: 8),
+              Text(
+                'Voice Transcript',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _subtleColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            transcript,
+            style: TextStyle(
+              fontSize: 15,
+              color: _textColor.withOpacity(0.7),
+              height: 1.6,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAIReflection(AIReflection reflection) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            _primaryColor.withOpacity(0.06),
-            _secondaryColor.withOpacity(0.04),
+            const Color(0xFF6366F1).withOpacity(0.08),
+            const Color(0xFF8B5CF6).withOpacity(0.05),
           ],
         ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _primaryColor.withOpacity(0.15)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -427,159 +490,149 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [_primaryColor, _secondaryColor],
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                   ),
-                  borderRadius: BorderRadius.circular(10),
+                  shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.psychology_rounded,
-                  color: Colors.white,
+                  Icons.auto_awesome_rounded,
                   size: 16,
+                  color: Colors.white,
                 ),
               ),
               const SizedBox(width: 10),
-              Text(
+              const Text(
                 'AI Reflection',
                 style: TextStyle(
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade800,
+                  color: Color(0xFF6366F1),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(12),
+          Text(
+            reflection.toneSummary,
+            style: TextStyle(
+              fontSize: 15,
+              color: _textColor.withOpacity(0.8),
+              height: 1.5,
             ),
-            child: Text(
-              reflection.toneSummary,
+          ),
+          if (reflection.reflectionQuestions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Reflect on these:',
               style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade700,
-                height: 1.5,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: _subtleColor,
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Reflect on these:',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade500,
-            ),
-          ),
-          const SizedBox(height: 10),
-          ...reflection.reflectionQuestions.map(
-            (q) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.lightbulb_outline_rounded,
-                    size: 16,
-                    color: _primaryColor,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      q,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
-                        fontStyle: FontStyle.italic,
-                        height: 1.4,
+            const SizedBox(height: 8),
+            ...reflection.reflectionQuestions.map(
+              (q) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.lightbulb_outline_rounded,
+                      size: 16,
+                      color: _accentColor,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        q,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _textColor.withOpacity(0.7),
+                          fontStyle: FontStyle.italic,
+                          height: 1.4,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildCrisisNote() {
+  Widget _buildBottomBar() {
     return Container(
-      margin: const EdgeInsets.only(top: 24),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.red.shade100),
+      padding: EdgeInsets.only(
+        left: 32,
+        right: 32,
+        top: 16,
+        bottom: MediaQuery.of(context).padding.bottom + 16,
       ),
-      child: Row(
-        children: [
-          Icon(Icons.favorite_rounded, color: Colors.red.shade400, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'We care about you. If you need support, please reach out to someone you trust.',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.red.shade700,
-                height: 1.4,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEditFAB() {
-    return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(colors: [_primaryColor, _secondaryColor]),
+        color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: _primaryColor.withOpacity(0.35),
+            color: Colors.black.withOpacity(0.06),
             blurRadius: 16,
-            offset: const Offset(0, 6),
+            offset: const Offset(0, -4),
           ),
         ],
       ),
-      child: FloatingActionButton.extended(
-        onPressed:
-            () => context.push('${Routes.journalEntry}/${widget.entryId}'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        icon: const Icon(Icons.edit_rounded, color: Colors.white, size: 18),
-        label: const Text(
-          'Edit',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Edit button
+          _buildActionButton(
+            icon: Icons.edit_rounded,
+            onTap:
+                () => context.push('${Routes.journalEntry}/${widget.entryId}'),
+          ),
+          const SizedBox(width: 32),
+          // Share button
+          _buildActionButton(
+            icon: Icons.share_rounded,
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Share coming soon')),
+              );
+            },
+          ),
+          const SizedBox(width: 32),
+          // Delete button
+          _buildActionButton(
+            icon: Icons.delete_outline_rounded,
+            onTap: _deleteEntry,
+            isDestructive: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isDestructive ? Colors.red.shade50 : Colors.grey.shade50,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          size: 22,
+          color: isDestructive ? Colors.red.shade400 : _textColor,
         ),
       ),
     );
-  }
-
-  IconData _getMoodIcon(int score) {
-    switch (score) {
-      case 1:
-        return Icons.sentiment_very_dissatisfied_rounded;
-      case 2:
-        return Icons.sentiment_dissatisfied_rounded;
-      case 3:
-        return Icons.sentiment_neutral_rounded;
-      case 4:
-        return Icons.sentiment_satisfied_rounded;
-      case 5:
-        return Icons.sentiment_very_satisfied_rounded;
-      default:
-        return Icons.sentiment_neutral_rounded;
-    }
-  }
-
-  Widget _buildVoicePlayback(String filePath) {
-    return AudioPlaybackWidget(audioPath: filePath);
   }
 }

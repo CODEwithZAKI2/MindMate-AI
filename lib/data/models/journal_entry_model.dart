@@ -18,6 +18,7 @@ class JournalEntryModel {
   final bool hasVoiceRecording;
   final String? voiceFilePath;
   final String? voiceTranscript;
+  final String? imageUrl;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
@@ -39,6 +40,7 @@ class JournalEntryModel {
     this.hasVoiceRecording = false,
     this.voiceFilePath,
     this.voiceTranscript,
+    this.imageUrl,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -72,6 +74,7 @@ class JournalEntryModel {
       hasVoiceRecording: entity.hasVoiceRecording,
       voiceFilePath: entity.voiceFilePath,
       voiceTranscript: entity.voiceTranscript,
+      imageUrl: entity.imageUrl,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
       deletedAt: entity.deletedAt,
@@ -106,6 +109,7 @@ class JournalEntryModel {
       hasVoiceRecording: data['hasVoiceRecording'] ?? false,
       voiceFilePath: data['voiceFilePath'],
       voiceTranscript: data['voiceTranscript'],
+      imageUrl: data['imageUrl'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       deletedAt: (data['deletedAt'] as Timestamp?)?.toDate(),
@@ -130,6 +134,7 @@ class JournalEntryModel {
       'hasVoiceRecording': hasVoiceRecording,
       'voiceFilePath': voiceFilePath,
       'voiceTranscript': voiceTranscript,
+      'imageUrl': imageUrl,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
       'deletedAt': deletedAt != null ? Timestamp.fromDate(deletedAt!) : null,
@@ -178,6 +183,7 @@ class JournalEntryModel {
       hasVoiceRecording: hasVoiceRecording,
       voiceFilePath: voiceFilePath,
       voiceTranscript: voiceTranscript,
+      imageUrl: imageUrl,
       createdAt: createdAt,
       updatedAt: updatedAt,
       deletedAt: deletedAt,

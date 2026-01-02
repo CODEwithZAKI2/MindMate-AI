@@ -53,6 +53,9 @@ class JournalEntry extends Equatable {
   final String? voiceFilePath;
   final String? voiceTranscript;
 
+  // Image
+  final String? imageUrl;
+
   // Timestamps
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -77,6 +80,7 @@ class JournalEntry extends Equatable {
     this.hasVoiceRecording = false,
     this.voiceFilePath,
     this.voiceTranscript,
+    this.imageUrl,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -151,6 +155,7 @@ class JournalEntry extends Equatable {
     bool? hasVoiceRecording,
     String? voiceFilePath,
     String? voiceTranscript,
+    String? imageUrl,
     DateTime? createdAt,
     DateTime? updatedAt,
     DateTime? deletedAt,
@@ -172,6 +177,7 @@ class JournalEntry extends Equatable {
       hasVoiceRecording: hasVoiceRecording ?? this.hasVoiceRecording,
       voiceFilePath: voiceFilePath ?? this.voiceFilePath,
       voiceTranscript: voiceTranscript ?? this.voiceTranscript,
+      imageUrl: imageUrl ?? this.imageUrl,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
@@ -196,6 +202,7 @@ class JournalEntry extends Equatable {
     hasVoiceRecording,
     voiceFilePath,
     voiceTranscript,
+    imageUrl,
     createdAt,
     updatedAt,
     deletedAt,

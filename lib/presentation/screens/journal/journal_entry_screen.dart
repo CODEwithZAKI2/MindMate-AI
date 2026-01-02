@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../../../domain/entities/journal_entry.dart';
 import '../../../data/services/journal_ai_service.dart';
 import '../../../data/services/voice_recording_service.dart';
@@ -34,6 +37,8 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen>
   bool _hasChanges = false;
   String? _promptText;
   String? _voiceNotePath;
+  String? _selectedImagePath; // Local file path for picked image
+  String? _existingImageUrl; // Already uploaded image URL
   JournalEntry? _existingEntry;
   DateTime _selectedDate = DateTime.now();
 
@@ -111,6 +116,7 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen>
         _isFavorite = entry.isFavorite;
         _promptText = entry.promptText;
         _selectedDate = entry.createdAt;
+        _existingImageUrl = entry.imageUrl;
         _isLoading = false;
       });
     } catch (e) {
@@ -145,6 +151,20 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen>
         );
       }
 
+      // Upload image if exists
+      String? imageDownloadUrl = _existingImageUrl;
+      if (_selectedImagePath != null) {
+        final imageFile = File(_selectedImagePath!);
+        final fileName = 'image_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final storageRef = FirebaseStorage.instance
+            .ref()
+            .child('journal_images')
+            .child(userId)
+            .child(fileName);
+        final uploadTask = await storageRef.putFile(imageFile);
+        imageDownloadUrl = await uploadTask.ref.getDownloadURL();
+      }
+
       if (_existingEntry != null) {
         await notifier.updateEntry(
           _existingEntry!.copyWith(
@@ -157,6 +177,7 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen>
             hasVoiceRecording:
                 voiceDownloadUrl != null || _existingEntry!.hasVoiceRecording,
             voiceFilePath: voiceDownloadUrl ?? _existingEntry!.voiceFilePath,
+            imageUrl: imageDownloadUrl,
           ),
         );
         entryId = _existingEntry!.id;
@@ -175,6 +196,7 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen>
             isFavorite: _isFavorite,
             hasVoiceRecording: voiceDownloadUrl != null,
             voiceFilePath: voiceDownloadUrl,
+            imageUrl: imageDownloadUrl,
           ),
         );
       }
@@ -263,6 +285,20 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen>
     await _stopRecording();
     setState(() => _showRecordingMode = false);
     _showSnackBar('Voice note added');
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 85,
+    );
+    if (pickedFile != null) {
+      setState(() => _selectedImagePath = pickedFile.path);
+      _showSnackBar('Image added');
+    }
   }
 
   @override
@@ -514,6 +550,9 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen>
           ),
           // Voice note indicator
           if (_voiceNotePath != null) _buildVoiceNoteIndicator(),
+          // Image preview
+          if (_selectedImagePath != null || _existingImageUrl != null)
+            _buildImagePreview(),
           const SizedBox(height: 100),
         ],
       ),
@@ -560,6 +599,79 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen>
     );
   }
 
+  Widget _buildImagePreview() {
+    final imagePath = _selectedImagePath;
+    final imageUrl = _existingImageUrl;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child:
+                imagePath != null
+                    ? Image.file(
+                      File(imagePath),
+                      width: double.infinity,
+                      height: 200,
+                      fit: BoxFit.cover,
+                    )
+                    : Image.network(
+                      imageUrl!,
+                      width: double.infinity,
+                      height: 200,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          height: 200,
+                          color: Colors.grey.shade100,
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+                      },
+                    ),
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: GestureDetector(
+              onTap:
+                  () => setState(() {
+                    _selectedImagePath = null;
+                    _existingImageUrl = null;
+                  }),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBottomToolbar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -588,9 +700,9 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen>
               icon: Icons.auto_awesome_rounded,
               onTap: _showAIPrompts,
             ),
-            // Record button (main action)
+            // Image picker button
             GestureDetector(
-              onTap: _startRecording,
+              onTap: _pickImage,
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
@@ -598,7 +710,7 @@ class _JournalEntryScreenState extends ConsumerState<JournalEntryScreen>
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  Icons.graphic_eq_rounded,
+                  Icons.image_outlined,
                   color: _primaryColor,
                   size: 24,
                 ),
