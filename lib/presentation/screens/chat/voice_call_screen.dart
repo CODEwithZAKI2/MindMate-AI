@@ -28,6 +28,10 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   // Conversation history for context
   final List<ChatMessage> _conversationHistory = [];
 
+  // Display messages for the UI (includes both user and AI messages)
+  final List<_VoiceMessage> _displayMessages = [];
+  final ScrollController _scrollController = ScrollController();
+
   // Call state
   bool _isConnecting = true;
   bool _isListening = false;
@@ -43,7 +47,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   String _errorMessage = '';
   String _connectingStatus = 'Initializing...';
   final TextEditingController _textController = TextEditingController();
-  
+
   // Voice session ID - persists throughout the call
   late String _voiceSessionId;
 
@@ -62,7 +66,8 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     super.initState();
 
     // Create a persistent session ID for this voice call
-    _voiceSessionId = widget.sessionId ?? 'voice_${DateTime.now().millisecondsSinceEpoch}';
+    _voiceSessionId =
+        widget.sessionId ?? 'voice_${DateTime.now().millisecondsSinceEpoch}';
 
     _pulseController = AnimationController(
       vsync: this,
@@ -87,7 +92,10 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       if (mounted) setState(() => _isListening = listening);
       // Intelligent turn-taking: process speech when user stops talking
       // The voice service handles the pause detection (3 seconds of silence)
-      if (!listening && _userTranscript.isNotEmpty && !_isProcessing && !_isSpeaking) {
+      if (!listening &&
+          _userTranscript.isNotEmpty &&
+          !_isProcessing &&
+          !_isSpeaking) {
         debugPrint('User finished speaking - processing: "$_userTranscript"');
         _processUserSpeech();
       }
@@ -100,7 +108,10 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       // But we add a fallback here just in case
       if (!speaking && !_isProcessing && mounted && _sttAvailable) {
         Future.delayed(const Duration(milliseconds: 800), () {
-          if (mounted && !_voiceService.isListening && !_isSpeaking && !_isProcessing) {
+          if (mounted &&
+              !_voiceService.isListening &&
+              !_isSpeaking &&
+              !_isProcessing) {
             debugPrint('Auto-activating mic after AI response');
             _startListening();
           }
@@ -117,12 +128,35 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     };
   }
 
+  /// Interrupt AI speaking when user starts talking
+  Future<void> _interruptAI() async {
+    if (_isSpeaking) {
+      debugPrint('User interrupting AI speech');
+      await _voiceService.stopSpeaking();
+      setState(() => _isSpeaking = false);
+    }
+  }
+
+  /// Scroll conversation to bottom
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
   Future<void> _initializeCall() async {
     debugPrint('Initializing voice call...');
 
     try {
       // Request microphone permission at runtime with timeout
-      if (mounted) setState(() => _connectingStatus = 'Requesting mic permission...');
+      if (mounted)
+        setState(() => _connectingStatus = 'Requesting mic permission...');
       debugPrint('Requesting microphone permission...');
       final micStatus = await Permission.microphone.request().timeout(
         const Duration(seconds: 10),
@@ -134,7 +168,8 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
         if (mounted) {
           setState(() {
             _isConnecting = false;
-            _errorMessage = 'Microphone permission denied. Please grant permission in Settings.';
+            _errorMessage =
+                'Microphone permission denied. Please grant permission in Settings.';
           });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -167,7 +202,8 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       }
 
       // Initialize TTS with timeout
-      if (mounted) setState(() => _connectingStatus = 'Initializing voice output...');
+      if (mounted)
+        setState(() => _connectingStatus = 'Initializing voice output...');
       debugPrint('Initializing text-to-speech...');
       bool ttsReady = false;
       try {
@@ -196,7 +232,10 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       }
 
       // Initialize STT with timeout
-      if (mounted) setState(() => _connectingStatus = 'Initializing speech recognition...');
+      if (mounted)
+        setState(
+          () => _connectingStatus = 'Initializing speech recognition...',
+        );
       debugPrint('Initializing speech-to-text...');
       bool sttReady = false;
       try {
@@ -218,7 +257,8 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
       if (!sttReady && mounted) {
         setState(() {
-          _errorMessage = 'Speech recognition unavailable - use keyboard to type';
+          _errorMessage =
+              'Speech recognition unavailable - use keyboard to type';
           _showTextInput = true; // Show text input as fallback
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -255,13 +295,13 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
       final greeting = "Hi, I'm here to listen. How are you feeling today?";
       if (mounted) setState(() => _aiResponse = greeting);
-      
+
       // Start continuous listening mode BEFORE greeting
       // This enables intelligent hands-free conversation
       if (sttReady) {
         await _voiceService.startListening(continuous: true);
       }
-      
+
       if (ttsReady) {
         // Speak greeting - listener will auto-activate after TTS completes
         await _voiceService.speak(greeting);
@@ -298,15 +338,17 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
           .collection('chat_sessions')
           .doc(_voiceSessionId)
           .set({
-        'userId': user.uid,
-        'title': 'Voice Call',
-        'startedAt': FieldValue.serverTimestamp(),
-        'lastMessageAt': FieldValue.serverTimestamp(),
-        'messageCount': 0,
-        'messages': [],
-        'isVoiceCall': true,
-      });
-      debugPrint('[VoiceSession] ✅ Voice session document created successfully!');
+            'userId': user.uid,
+            'title': 'Voice Call',
+            'startedAt': FieldValue.serverTimestamp(),
+            'lastMessageAt': FieldValue.serverTimestamp(),
+            'messageCount': 0,
+            'messages': [],
+            'isVoiceCall': true,
+          });
+      debugPrint(
+        '[VoiceSession] ✅ Voice session document created successfully!',
+      );
     } catch (e) {
       debugPrint('[VoiceSession] ❌ Error creating voice session: $e');
       // Continue anyway - the cloud function might still work
@@ -347,11 +389,25 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
     // Pause listening while processing (but keep continuous mode enabled)
     await _voiceService.pauseListening();
-    
+
+    // Store the user's message before clearing
+    final userMessage = _userTranscript;
+
     setState(() {
       _isProcessing = true;
       _aiResponse = '';
+      // Add user message to display list
+      _displayMessages.add(
+        _VoiceMessage(
+          text: userMessage,
+          isUser: true,
+          timestamp: DateTime.now(),
+        ),
+      );
     });
+
+    // Scroll to bottom after adding user message
+    _scrollToBottom();
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -360,7 +416,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     _conversationHistory.add(
       ChatMessage(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        content: _userTranscript,
+        content: userMessage,
         role: 'user',
         timestamp: DateTime.now(),
       ),
@@ -371,12 +427,21 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       final response = await _cloudFunctions.sendChatMessage(
         userId: user.uid,
         sessionId: _voiceSessionId,
-        message: _userTranscript,
+        message: userMessage,
         conversationHistory: _conversationHistory,
       );
 
       final aiText = response.response;
-      setState(() => _aiResponse = aiText);
+      setState(() {
+        _aiResponse = aiText;
+        // Add AI response to display list
+        _displayMessages.add(
+          _VoiceMessage(text: aiText, isUser: false, timestamp: DateTime.now()),
+        );
+      });
+
+      // Scroll to bottom after adding AI message
+      _scrollToBottom();
 
       // Add AI response to history
       _conversationHistory.add(
@@ -451,6 +516,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     _pulseController.dispose();
     _waveController.dispose();
     _textController.dispose();
+    _scrollController.dispose();
     _voiceService.dispose();
     super.dispose();
   }
@@ -464,29 +530,285 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
         child: Column(
           children: [
             _buildHeader(),
-            const Spacer(),
-            _buildCenterOrb(),
-            const SizedBox(height: 32),
-            _buildStatusText(),
-            if (_errorMessage.isNotEmpty) ...[
-              const SizedBox(height: 8),
+            // Conversation area takes most space
+            Expanded(child: _buildConversationArea()),
+            // Compact orb with status - tap to interrupt
+            _buildCompactOrbAndStatus(),
+            if (_errorMessage.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 8,
+                ),
                 child: Text(
                   _errorMessage,
                   style: TextStyle(color: Colors.orange.shade300, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
               ),
-            ],
-            const Spacer(),
-            _buildTranscriptArea(),
+            // Current transcript (what user is saying now)
+            if (_userTranscript.isNotEmpty && !_isProcessing)
+              _buildCurrentTranscript(),
             if (_showTextInput) _buildTextInput(),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             _buildControls(),
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Conversation area showing all messages
+  Widget _buildConversationArea() {
+    if (_displayMessages.isEmpty && !_isProcessing) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.chat_bubble_outline_rounded,
+                color: Colors.white.withOpacity(0.3),
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _sttAvailable
+                    ? 'Start speaking to begin the conversation'
+                    : 'Type a message to begin',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 16,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: _displayMessages.length + (_isProcessing ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == _displayMessages.length && _isProcessing) {
+          // Show typing indicator
+          return _buildTypingIndicator();
+        }
+        return _buildMessageBubble(_displayMessages[index]);
+      },
+    );
+  }
+
+  /// Individual message bubble
+  Widget _buildMessageBubble(_VoiceMessage message) {
+    final isUser = message.isUser;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: isUser ? 48 : 0,
+        right: isUser ? 0 : 48,
+        bottom: 12,
+      ),
+      child: Align(
+        alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color:
+                isUser
+                    ? _primaryColor.withOpacity(0.8)
+                    : Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20).copyWith(
+              bottomRight: isUser ? const Radius.circular(4) : null,
+              bottomLeft: !isUser ? const Radius.circular(4) : null,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isUser)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    'MindMate AI',
+                    style: TextStyle(
+                      color: _accentColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              Text(
+                message.text,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.95),
+                  fontSize: 15,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Typing indicator when AI is thinking
+  Widget _buildTypingIndicator() {
+    return Padding(
+      padding: const EdgeInsets.only(right: 48, bottom: 12),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(
+              20,
+            ).copyWith(bottomLeft: const Radius.circular(4)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'MindMate AI ',
+                style: TextStyle(
+                  color: _accentColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(
+                width: 24,
+                height: 16,
+                child: _ThinkingDots(color: Colors.white.withOpacity(0.6)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Compact orb with tap-to-interrupt
+  Widget _buildCompactOrbAndStatus() {
+    return GestureDetector(
+      onTap: _isSpeaking ? _interruptAI : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedBuilder(
+              animation: _pulseController,
+              builder: (context, child) {
+                final scale = 1.0 + (_pulseController.value * 0.1);
+                final shouldAnimate = _isSpeaking || _isListening;
+                return Transform.scale(
+                  scale: shouldAnimate ? scale : 1.0,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          (shouldAnimate ? _accentColor : _primaryColor)
+                              .withOpacity(0.8),
+                          _secondaryColor.withOpacity(0.4),
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (shouldAnimate ? _accentColor : _primaryColor)
+                              .withOpacity(0.3),
+                          blurRadius: shouldAnimate ? 20 : 10,
+                          spreadRadius: shouldAnimate ? 5 : 2,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      _isSpeaking
+                          ? Icons.record_voice_over_rounded
+                          : _isListening
+                          ? Icons.mic_rounded
+                          : Icons.headset_mic_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _buildStatusString(),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (_isSpeaking)
+                  Text(
+                    'Tap to interrupt',
+                    style: TextStyle(
+                      color: _accentColor.withOpacity(0.8),
+                      fontSize: 11,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _buildStatusString() {
+    if (_isConnecting) return _connectingStatus;
+    if (_isProcessing) return 'Thinking...';
+    if (_isSpeaking) return 'Speaking...';
+    if (_isListening) return 'Listening...';
+    if (_sttAvailable) return 'Ready';
+    return 'Type message';
+  }
+
+  /// Shows what the user is currently saying
+  Widget _buildCurrentTranscript() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: _primaryColor.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _primaryColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.mic_rounded, color: _accentColor, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _userTranscript,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.9),
+                fontSize: 14,
+                fontStyle: FontStyle.italic,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -509,7 +831,10 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
                   hintText: 'Type your message...',
                   hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
                 onSubmitted: (_) => _sendTextMessage(),
               ),
@@ -525,11 +850,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
                 color: _primaryColor,
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                Icons.send_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
+              child: Icon(Icons.send_rounded, color: Colors.white, size: 22),
             ),
           ),
         ],
@@ -696,12 +1017,17 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: _showTextInput ? _primaryColor : Colors.white.withOpacity(0.1),
+              color:
+                  _showTextInput
+                      ? _primaryColor
+                      : Colors.white.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
-              !_sttAvailable 
-                  ? (_showTextInput ? Icons.keyboard_hide_rounded : Icons.keyboard_rounded)
+              !_sttAvailable
+                  ? (_showTextInput
+                      ? Icons.keyboard_hide_rounded
+                      : Icons.keyboard_rounded)
                   : (_isListening ? Icons.mic_rounded : Icons.mic_off_rounded),
               color: Colors.white,
               size: 28,
@@ -745,6 +1071,75 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Message model for voice conversation display
+class _VoiceMessage {
+  final String text;
+  final bool isUser;
+  final DateTime timestamp;
+
+  _VoiceMessage({
+    required this.text,
+    required this.isUser,
+    required this.timestamp,
+  });
+}
+
+/// Animated thinking dots
+class _ThinkingDots extends StatefulWidget {
+  final Color color;
+
+  const _ThinkingDots({required this.color});
+
+  @override
+  State<_ThinkingDots> createState() => _ThinkingDotsState();
+}
+
+class _ThinkingDotsState extends State<_ThinkingDots>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (index) {
+            final delay = index * 0.2;
+            final value = ((_controller.value + delay) % 1.0);
+            final opacity = value < 0.5 ? value * 2 : (1 - value) * 2;
+            return Container(
+              width: 6,
+              height: 6,
+              margin: const EdgeInsets.symmetric(horizontal: 1),
+              decoration: BoxDecoration(
+                color: widget.color.withOpacity(opacity.clamp(0.3, 1.0)),
+                shape: BoxShape.circle,
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }
