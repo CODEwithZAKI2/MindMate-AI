@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../data/services/voice_call_service.dart';
 import '../../../domain/services/cloud_functions_service.dart';
@@ -32,6 +33,8 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   bool _isListening = false;
   bool _isSpeaking = false;
   bool _isProcessing = false;
+  bool _sttAvailable = false;
+  bool _showTextInput = false;
   String _userTranscript = '';
   String _aiResponse = '';
   String _callDuration = '00:00';
@@ -39,6 +42,10 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   Timer? _durationTimer;
   String _errorMessage = '';
   String _connectingStatus = 'Initializing...';
+  final TextEditingController _textController = TextEditingController();
+  
+  // Voice session ID - persists throughout the call
+  late String _voiceSessionId;
 
   // Animation controllers
   late AnimationController _pulseController;
@@ -53,6 +60,9 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   @override
   void initState() {
     super.initState();
+
+    // Create a persistent session ID for this voice call
+    _voiceSessionId = widget.sessionId ?? 'voice_${DateTime.now().millisecondsSinceEpoch}';
 
     _pulseController = AnimationController(
       vsync: this,
@@ -194,8 +204,15 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       }
       debugPrint('STT initialized: $sttReady');
 
+      if (mounted) {
+        setState(() => _sttAvailable = sttReady);
+      }
+
       if (!sttReady && mounted) {
-        setState(() => _errorMessage = 'Speech recognition unavailable');
+        setState(() {
+          _errorMessage = 'Speech recognition unavailable - use keyboard to type';
+          _showTextInput = true; // Show text input as fallback
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text(
@@ -210,6 +227,15 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
             ),
           ),
         );
+      }
+
+      // Create voice session document in Firestore BEFORE starting call
+      debugPrint('About to create voice session with ID: $_voiceSessionId');
+      try {
+        await _createVoiceSession();
+        debugPrint('Voice session creation completed');
+      } catch (e) {
+        debugPrint('Voice session creation error: $e');
       }
 
       // Mark as connected regardless of TTS/STT status
@@ -233,6 +259,40 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
           _errorMessage = 'Failed to initialize: $e';
         });
       }
+    }
+  }
+
+  /// Create voice session document in Firestore so Cloud Function can update it
+  Future<void> _createVoiceSession() async {
+    debugPrint('[VoiceSession] _createVoiceSession called');
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      debugPrint('[VoiceSession] No user logged in!');
+      return;
+    }
+
+    debugPrint('[VoiceSession] User ID: ${user.uid}');
+    debugPrint('[VoiceSession] Session ID: $_voiceSessionId');
+
+    try {
+      debugPrint('[VoiceSession] Creating Firestore document...');
+      await FirebaseFirestore.instance
+          .collection('chat_sessions')
+          .doc(_voiceSessionId)
+          .set({
+        'userId': user.uid,
+        'title': 'Voice Call',
+        'createdAt': FieldValue.serverTimestamp(),
+        'lastMessageAt': FieldValue.serverTimestamp(),
+        'messageCount': 0,
+        'messages': [],
+        'isVoiceCall': true,
+      });
+      debugPrint('[VoiceSession] ✅ Voice session document created successfully!');
+    } catch (e) {
+      debugPrint('[VoiceSession] ❌ Error creating voice session: $e');
+      // Continue anyway - the cloud function might still work
+      rethrow; // Rethrow so we can see the error in logs
     }
   }
 
@@ -289,12 +349,10 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     );
 
     try {
-      // Use existing cloud function
+      // Use existing cloud function with the persistent voice session ID
       final response = await _cloudFunctions.sendChatMessage(
         userId: user.uid,
-        sessionId:
-            widget.sessionId ??
-            'voice_${DateTime.now().millisecondsSinceEpoch}',
+        sessionId: _voiceSessionId,
         message: _userTranscript,
         conversationHistory: _conversationHistory,
       );
@@ -324,6 +382,20 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     }
   }
 
+  /// Send text message (fallback when STT is unavailable)
+  Future<void> _sendTextMessage() async {
+    final text = _textController.text.trim();
+    if (text.isEmpty || _isProcessing) return;
+
+    setState(() {
+      _userTranscript = text;
+      _textController.clear();
+      _showTextInput = false;
+    });
+
+    await _processUserSpeech();
+  }
+
   void _endCall() async {
     _durationTimer?.cancel();
     await _voiceService.dispose();
@@ -331,6 +403,11 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   }
 
   void _toggleMute() {
+    if (!_sttAvailable) {
+      // If STT not available, toggle text input instead
+      setState(() => _showTextInput = !_showTextInput);
+      return;
+    }
     if (_isListening) {
       _stopListening();
     } else {
@@ -343,6 +420,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     _durationTimer?.cancel();
     _pulseController.dispose();
     _waveController.dispose();
+    _textController.dispose();
     _voiceService.dispose();
     super.dispose();
   }
@@ -351,6 +429,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _backgroundColor,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: Column(
           children: [
@@ -361,18 +440,69 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
             _buildStatusText(),
             if (_errorMessage.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(
-                _errorMessage,
-                style: TextStyle(color: Colors.red.shade300, fontSize: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  _errorMessage,
+                  style: TextStyle(color: Colors.orange.shade300, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ],
             const Spacer(),
             _buildTranscriptArea(),
+            if (_showTextInput) _buildTextInput(),
             const SizedBox(height: 24),
             _buildControls(),
             const SizedBox(height: 40),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTextInput() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: TextField(
+                controller: _textController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Type your message...',
+                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                onSubmitted: (_) => _sendTextMessage(),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: _sendTextMessage,
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: _primaryColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.send_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -527,18 +657,20 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Mute/Unmute button
+        // Mute/Unmute button or Keyboard button if STT unavailable
         GestureDetector(
           onTap: _toggleMute,
           child: Container(
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: _showTextInput ? _primaryColor : Colors.white.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
-              _isListening ? Icons.mic_rounded : Icons.mic_off_rounded,
+              !_sttAvailable 
+                  ? (_showTextInput ? Icons.keyboard_hide_rounded : Icons.keyboard_rounded)
+                  : (_isListening ? Icons.mic_rounded : Icons.mic_off_rounded),
               color: Colors.white,
               size: 28,
             ),
