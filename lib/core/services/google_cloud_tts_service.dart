@@ -1,9 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -276,10 +274,10 @@ class GoogleCloudTtsService {
         // Decode base64 audio
         final audioBytes = base64Decode(audioContent);
 
-        // Update usage tracking
-        await _updateUsage(text.length);
+        // Update usage tracking (don't await - do in background)
+        _updateUsage(text.length);
 
-        // Play audio
+        // Play audio immediately
         await _playAudio(audioBytes);
       } else {
         debugPrint('[GoogleCloudTTS] API error: ${response.statusCode}');
@@ -294,21 +292,14 @@ class GoogleCloudTtsService {
     }
   }
 
-  /// Play audio from bytes
+  /// Play audio from bytes - optimized for speed
   Future<void> _playAudio(Uint8List audioBytes) async {
     try {
-      // Save to temporary file
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File(
-        '${tempDir.path}/tts_audio_${DateTime.now().millisecondsSinceEpoch}.mp3',
-      );
-      await tempFile.writeAsBytes(audioBytes);
-
       _isSpeaking = true;
       onSpeakingStateChanged?.call(true);
 
-      // Play from file
-      await _audioPlayer.play(DeviceFileSource(tempFile.path));
+      // Play directly from memory using BytesSource (faster than file)
+      await _audioPlayer.play(BytesSource(audioBytes));
 
       debugPrint('[GoogleCloudTTS] Audio playback started');
     } catch (e) {
