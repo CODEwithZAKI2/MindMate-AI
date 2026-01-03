@@ -462,7 +462,8 @@ class VoiceCallService {
           cancelOnError: false,
           partialResults: true,
           autoPunctuation: true,
-          onDevice: false, // Allow cloud-based recognition
+          // Don't specify onDevice - let the system use whatever speech service is available
+          // This allows Xiaomi, Samsung, etc. to use their built-in engines
         ),
       );
     } catch (e) {
