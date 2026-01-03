@@ -23,6 +23,7 @@ import '../screens/journal/journal_calendar_view.dart';
 import '../screens/journal/journal_insights_screen.dart';
 import '../screens/journal/journal_detail_screen.dart';
 import '../screens/journal/journal_entry_screen.dart';
+import '../screens/chat/voice_call_screen.dart';
 
 // Placeholder screens for features not yet implemented
 class MoodScreen extends StatelessWidget {
@@ -175,6 +176,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder:
             (context, state) =>
                 JournalEntryScreen(entryId: state.pathParameters['entryId']),
+      ),
+
+      // Voice Call route
+      GoRoute(
+        path: Routes.voiceCall,
+        name: 'voiceCall',
+        builder: (context, state) => const VoiceCallScreen(),
       ),
     ],
 

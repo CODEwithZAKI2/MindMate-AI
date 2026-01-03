@@ -681,6 +681,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ],
         ),
         actions: [
+          // Voice Call Button
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: Icon(
+                Icons.call_rounded,
+                color: theme.colorScheme.primary,
+                size: 22,
+              ),
+              onPressed: () => context.push('/voice-call'),
+              tooltip: 'Voice Call',
+            ),
+          ),
+          // New Chat Button
           Container(
             margin: const EdgeInsets.only(right: 12),
             decoration: BoxDecoration(
