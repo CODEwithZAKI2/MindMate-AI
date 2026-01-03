@@ -111,13 +111,15 @@ class VoiceCallService {
       onUsageWarning?.call(used, limit);
     };
 
-    // Configure voice for mental wellness (warm, caring tone)
+    // Configure voice for mental wellness (warm, caring, empathetic tone)
+    // Journey-F is Google's most natural conversational voice
+    // Note: Journey voices don't support pitch adjustment
     _googleCloudTts.setVoice(
-      voiceName: 'en-US-Neural2-F', // Neural2-F is very natural female voice
+      voiceName: 'en-US-Journey-F', // Journey-F: Warm, soothing, conversational female voice
       languageCode: 'en-US',
-      speakingRate: 0.92, // Slightly slower for warmth and clarity
-      pitch: 0.0, // Natural pitch
-      volumeGainDb: 1.0, // Slightly louder for clarity
+      speakingRate: 0.95, // Slightly slower for warmth and clarity
+      pitch: 0.0, // Journey voices use default pitch only
+      volumeGainDb: 2.0, // Good volume for clarity
     );
 
     return await _googleCloudTts.initialize(apiKey: apiKey);

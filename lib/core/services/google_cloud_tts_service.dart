@@ -161,6 +161,45 @@ class GoogleCloudTtsService {
     debugPrint('[GoogleCloudTTS] Voice configured: $_voiceName');
   }
 
+  /// Convert plain text to SSML for natural prosody
+  /// Adds pauses, emphasis, and natural speech patterns
+  String _convertToSsml(String text) {
+    // Escape special XML characters
+    String escaped = text
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&apos;');
+
+    // Add natural pauses after punctuation
+    escaped = escaped
+        .replaceAll('. ', '.<break time="400ms"/> ')
+        .replaceAll('! ', '!<break time="350ms"/> ')
+        .replaceAll('? ', '?<break time="450ms"/> ')
+        .replaceAll(', ', ',<break time="200ms"/> ')
+        .replaceAll(': ', ':<break time="300ms"/> ')
+        .replaceAll('; ', ';<break time="300ms"/> ');
+
+    // Add emphasis to emotional/supportive words (common in therapy)
+    final emphasisWords = [
+      'wonderful', 'great', 'amazing', 'proud', 'happy', 'glad',
+      'understand', 'hear', 'feel', 'support', 'care', 'help',
+      'strong', 'brave', 'okay', 'safe', 'important', 'matter',
+    ];
+    
+    for (final word in emphasisWords) {
+      // Case-insensitive replacement with emphasis
+      final regex = RegExp('\\b($word)\\b', caseSensitive: false);
+      escaped = escaped.replaceAllMapped(regex, (match) {
+        return '<emphasis level="moderate">${match.group(1)}</emphasis>';
+      });
+    }
+
+    // Wrap in speak tags with prosody for warmth
+    return '<speak><prosody rate="medium" pitch="medium">$escaped</prosody></speak>';
+  }
+
   /// Synthesize speech from text
   Future<void> speak(String text) async {
     if (text.isEmpty) {
@@ -191,21 +230,37 @@ class GoogleCloudTtsService {
         '[GoogleCloudTTS] Speaking: "${text.substring(0, text.length > 50 ? 50 : text.length)}..."',
       );
 
-      // Build request body
-      final requestBody = {
-        'input': {'text': text},
+      // Check if voice is Journey type (has different limitations)
+      final isJourneyVoice = _voiceName.contains('Journey');
+
+      // Build audioConfig based on voice type
+      final audioConfig = <String, dynamic>{
+        'audioEncoding': 'MP3',
+        'speakingRate': _speakingRate,
+      };
+      
+      // Journey voices don't support pitch or volumeGainDb
+      if (!isJourneyVoice) {
+        audioConfig['pitch'] = _pitch;
+        audioConfig['volumeGainDb'] = _volumeGainDb;
+        audioConfig['effectsProfileId'] = ['small-bluetooth-speaker-class-device'];
+      }
+
+      // Build request body - use plain text for Journey voices, SSML for others
+      final requestBody = <String, dynamic>{
         'voice': {
           'languageCode': _languageCode,
           'name': _voiceName,
         },
-        'audioConfig': {
-          'audioEncoding': 'MP3',
-          'speakingRate': _speakingRate,
-          'pitch': _pitch,
-          'volumeGainDb': _volumeGainDb,
-          'effectsProfileId': ['headphone-class-device'], // Optimize for device
-        },
+        'audioConfig': audioConfig,
       };
+
+      // Journey voices work better with plain text
+      if (isJourneyVoice) {
+        requestBody['input'] = {'text': text};
+      } else {
+        requestBody['input'] = {'ssml': _convertToSsml(text)};
+      }
 
       // Make API request
       final response = await http.post(
