@@ -74,17 +74,20 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
     _voiceService.onListeningStateChanged = (listening) {
       if (mounted) setState(() => _isListening = listening);
-      if (!listening && _userTranscript.isNotEmpty && !_isProcessing) {
+      // Process speech when we get final result and listening stops
+      if (!listening && _userTranscript.isNotEmpty && !_isProcessing && !_isSpeaking) {
         _processUserSpeech();
       }
     };
 
     _voiceService.onSpeakingStateChanged = (speaking) {
       if (mounted) setState(() => _isSpeaking = speaking);
-      if (!speaking && !_isProcessing) {
-        // AI finished speaking, start listening again
+      // When AI finishes speaking, resume continuous listening
+      if (!speaking && !_isProcessing && mounted) {
         Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted && _voiceService.isSttAvailable) _startListening();
+          if (mounted && _voiceService.isSttAvailable && !_voiceService.isListening) {
+            _startListening();
+          }
         });
       }
     };
@@ -200,7 +203,8 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       _userTranscript = '';
       _errorMessage = '';
     });
-    await _voiceService.startListening();
+    // Use continuous listening mode - stays active until call ends
+    await _voiceService.startListening(continuous: true);
   }
 
   void _stopListening() async {
@@ -209,10 +213,12 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
   Future<void> _processUserSpeech() async {
     if (_userTranscript.isEmpty) {
-      _startListening();
-      return;
+      return; // Don't restart here, continuous mode handles it
     }
 
+    // Pause listening while processing (but keep continuous mode enabled)
+    await _voiceService.pauseListening();
+    
     setState(() {
       _isProcessing = true;
       _aiResponse = '';

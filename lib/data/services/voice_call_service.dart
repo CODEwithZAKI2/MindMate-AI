@@ -135,7 +135,15 @@ class VoiceCallService {
             onError?.call('Microphone permission denied. Please grant permission to Google app in Settings.');
           } else if (error.errorMsg == 'error_language_not_supported') {
             debugPrint('Language not supported - will continue without STT');
-          } else if (error.errorMsg != 'error_speech_timeout') {
+          } else if (error.errorMsg == 'error_speech_timeout') {
+            // Speech timeout - auto restart if in continuous mode
+            debugPrint('Speech timeout - will restart if continuous mode');
+            _scheduleRestartListening();
+          } else if (error.errorMsg == 'error_no_match') {
+            // No speech matched - auto restart if in continuous mode
+            debugPrint('No speech matched - will restart if continuous mode');
+            _scheduleRestartListening();
+          } else {
             onError?.call('Speech error: ${error.errorMsg}');
           }
         },
@@ -144,6 +152,10 @@ class VoiceCallService {
           if (status == 'notListening' || status == 'done') {
             _isListening = false;
             onListeningStateChanged?.call(false);
+            // Auto restart if in continuous mode and not speaking
+            if (_continuousListening && !_isSpeaking) {
+              _scheduleRestartListening();
+            }
           }
         },
       );
@@ -186,6 +198,10 @@ class VoiceCallService {
 
   // Selected locale for STT
   String? _selectedLocale;
+  
+  // Continuous listening mode - keeps listening until manually stopped
+  bool _continuousListening = false;
+  Timer? _restartTimer;
 
   /// Check if STT is available
   bool get isSttAvailable => _sttAvailable;
@@ -198,9 +214,13 @@ class VoiceCallService {
 
   /// Check if currently listening
   bool get isListening => _isListening;
+  
+  /// Check if continuous listening is enabled
+  bool get isContinuousListening => _continuousListening;
 
-  /// Start listening for speech input
-  Future<void> startListening() async {
+  /// Start listening for speech input with continuous mode
+  /// In continuous mode, listening will auto-restart after silence
+  Future<void> startListening({bool continuous = true}) async {
     if (!_sttAvailable) {
       onError?.call('Speech recognition not available');
       return;
@@ -211,20 +231,29 @@ class VoiceCallService {
       await Future.delayed(const Duration(milliseconds: 300));
     }
 
+    _continuousListening = continuous;
     _isListening = true;
     onListeningStateChanged?.call(true);
 
+    await _startListeningInternal();
+  }
+  
+  /// Internal method to start STT
+  Future<void> _startListeningInternal() async {
     try {
-      debugPrint('Starting STT with locale: $_selectedLocale');
+      debugPrint('Starting STT with locale: $_selectedLocale (continuous: $_continuousListening)');
       await _stt.listen(
         onResult: (result) {
           debugPrint(
             'STT result: ${result.recognizedWords} (final: ${result.finalResult})',
           );
           onSpeechResult?.call(result.recognizedWords);
+          
+          // If we got a final result and continuous mode is on,
+          // we'll let it timeout and auto-restart
         },
-        listenFor: const Duration(seconds: 30),
-        pauseFor: const Duration(seconds: 3),
+        listenFor: const Duration(minutes: 5), // Listen for up to 5 minutes
+        pauseFor: const Duration(seconds: 10), // Wait 10 seconds of silence before stopping
         partialResults: true,
         localeId: _selectedLocale, // Use selected locale
         listenOptions: stt.SpeechListenOptions(
@@ -241,12 +270,36 @@ class VoiceCallService {
       onError?.call('Failed to start listening: $e');
     }
   }
+  
+  /// Restart listening after a short delay (for continuous mode)
+  void _scheduleRestartListening() {
+    if (!_continuousListening || _isSpeaking) return;
+    
+    _restartTimer?.cancel();
+    _restartTimer = Timer(const Duration(milliseconds: 500), () async {
+      if (_continuousListening && !_isSpeaking && !_isListening) {
+        debugPrint('Auto-restarting listening (continuous mode)');
+        _isListening = true;
+        onListeningStateChanged?.call(true);
+        await _startListeningInternal();
+      }
+    });
+  }
 
-  /// Stop listening
+  /// Stop listening completely (disables continuous mode)
   Future<void> stopListening() async {
+    _continuousListening = false;
+    _restartTimer?.cancel();
     _isListening = false;
     onListeningStateChanged?.call(false);
     await _stt.stop();
+  }
+  
+  /// Pause listening temporarily (keeps continuous mode enabled)
+  Future<void> pauseListening() async {
+    _isListening = false;
+    await _stt.stop();
+    // Don't disable continuous mode - will restart when needed
   }
 
   /// Speak text using TTS
@@ -306,6 +359,8 @@ class VoiceCallService {
 
   /// Cleanup resources
   Future<void> dispose() async {
+    _continuousListening = false;
+    _restartTimer?.cancel();
     await stopListening();
     await stopSpeaking();
     await _stt.cancel();
