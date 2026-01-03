@@ -312,14 +312,17 @@ class GoogleCloudTtsService {
 
   /// Stop speaking
   Future<void> stop() async {
+    if (!_isSpeaking) return; // Already stopped
+    
     try {
       await _audioPlayer.stop();
-      _isSpeaking = false;
-      onSpeakingStateChanged?.call(false);
-      debugPrint('[GoogleCloudTTS] Stopped speaking');
     } catch (e) {
-      debugPrint('[GoogleCloudTTS] Stop error: $e');
+      // Ignore errors if player is already disposed
+      debugPrint('[GoogleCloudTTS] Stop warning (safe to ignore): $e');
     }
+    _isSpeaking = false;
+    onSpeakingStateChanged?.call(false);
+    debugPrint('[GoogleCloudTTS] Stopped speaking');
   }
 
   /// Check if currently speaking
@@ -445,7 +448,18 @@ class GoogleCloudTtsService {
 
   /// Cleanup resources
   Future<void> dispose() async {
-    await _audioPlayer.dispose();
+    try {
+      // Only stop if currently playing
+      if (_isSpeaking) {
+        await _audioPlayer.stop();
+      }
+      await _audioPlayer.release();
+      await _audioPlayer.dispose();
+    } catch (e) {
+      debugPrint('[GoogleCloudTTS] Dispose warning (safe to ignore): $e');
+    }
+    _isSpeaking = false;
+    _isInitialized = false;
     onSpeakingStateChanged = null;
     onError = null;
     onComplete = null;

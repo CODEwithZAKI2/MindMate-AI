@@ -28,6 +28,10 @@ class VoiceCallService {
   bool _ttsReady = false;
   bool _isSpeaking = false;
   bool _isListening = false;
+  
+  /// CRITICAL: Block mic during AI processing/speaking
+  /// This prevents mic from restarting while waiting for API or playing audio
+  bool _blockMicRestarts = false;
 
   // Callbacks
   Function(String)? onSpeechResult;
@@ -89,12 +93,7 @@ class VoiceCallService {
     _googleCloudTts.onSpeakingStateChanged = (speaking) {
       _isSpeaking = speaking;
       onSpeakingStateChanged?.call(speaking);
-      
-      // Auto-restart listening after AI finishes speaking
-      if (!speaking && _continuousListening) {
-        debugPrint('[VoiceCallService] AI finished speaking - auto-starting listener');
-        _scheduleRestartListening();
-      }
+      // DON'T auto-restart here - let the screen handle state transitions
     };
 
     _googleCloudTts.onError = (error) {
@@ -258,11 +257,7 @@ class VoiceCallService {
         debugPrint('TTS completed speaking');
         _isSpeaking = false;
         onSpeakingStateChanged?.call(false);
-        // Auto-restart listening after AI finishes speaking (intelligent turn-taking)
-        if (_continuousListening) {
-          debugPrint('AI finished speaking - auto-starting listener');
-          _scheduleRestartListening();
-        }
+        // DON'T auto-restart here - let the screen handle state transitions
       });
 
       _tts!.setErrorHandler((msg) {
@@ -329,13 +324,20 @@ class VoiceCallService {
           } else if (error.errorMsg == 'error_language_not_supported') {
             debugPrint('Language not supported - will continue without STT');
           } else if (error.errorMsg == 'error_speech_timeout') {
-            // Speech timeout - auto restart if in continuous mode
-            debugPrint('Speech timeout - will restart if continuous mode');
-            _scheduleRestartListening();
+            // Speech timeout - only restart if allowed
+            debugPrint('Speech timeout - checking if restart allowed');
+            if (!_blockMicRestarts && !_isSpeaking) {
+              _scheduleRestartListening(delayMs: 1200);
+            }
           } else if (error.errorMsg == 'error_no_match') {
-            // No speech matched - auto restart if in continuous mode
-            debugPrint('No speech matched - will restart if continuous mode');
-            _scheduleRestartListening();
+            // No speech matched - only restart if allowed
+            debugPrint('No speech matched - checking if restart allowed');
+            if (!_blockMicRestarts && !_isSpeaking) {
+              _scheduleRestartListening(delayMs: 1200);
+            }
+          } else if (error.errorMsg == 'error_busy') {
+            // Mic busy - don't restart immediately
+            debugPrint('Mic busy - waiting before retry');
           } else {
             onError?.call('Speech error: ${error.errorMsg}');
           }
@@ -345,9 +347,9 @@ class VoiceCallService {
           if (status == 'notListening' || status == 'done') {
             _isListening = false;
             onListeningStateChanged?.call(false);
-            // Auto restart if in continuous mode and not speaking
-            if (_continuousListening && !_isSpeaking) {
-              _scheduleRestartListening();
+            // Only restart if continuous mode, not speaking, AND not blocked
+            if (_continuousListening && !_isSpeaking && !_blockMicRestarts) {
+              _scheduleRestartListening(delayMs: 1200);
             }
           }
         },
@@ -471,19 +473,66 @@ class VoiceCallService {
     }
   }
 
-  /// Restart listening after a short delay (for continuous mode)
-  void _scheduleRestartListening() {
-    if (!_continuousListening || _isSpeaking) return;
+  /// Restart listening after a delay (for continuous mode)
+  /// Only restarts if: 
+  /// 1. Continuous mode is enabled
+  /// 2. AI is not speaking
+  /// 3. Mic restarts are not blocked
+  void _scheduleRestartListening({int delayMs = 1200}) {
+    // CRITICAL: Never restart if blocked or speaking
+    if (_blockMicRestarts) {
+      debugPrint('[VoiceCallService] Restart BLOCKED - mic restarts disabled');
+      return;
+    }
+    if (_isSpeaking) {
+      debugPrint('[VoiceCallService] Restart BLOCKED - AI is speaking');
+      return;
+    }
+    if (!_continuousListening) {
+      debugPrint('[VoiceCallService] Restart BLOCKED - not in continuous mode');
+      return;
+    }
 
     _restartTimer?.cancel();
-    _restartTimer = Timer(const Duration(milliseconds: 500), () async {
-      if (_continuousListening && !_isSpeaking && !_isListening) {
-        debugPrint('Auto-restarting listening (continuous mode)');
-        _isListening = true;
-        onListeningStateChanged?.call(true);
-        await _startListeningInternal();
+    debugPrint('[VoiceCallService] Scheduling restart in ${delayMs}ms');
+    
+    _restartTimer = Timer(Duration(milliseconds: delayMs), () async {
+      // Triple-check conditions before restarting
+      if (_blockMicRestarts) {
+        debugPrint('[VoiceCallService] Restart cancelled - blocked');
+        return;
       }
+      if (_isSpeaking) {
+        debugPrint('[VoiceCallService] Restart cancelled - AI speaking');
+        return;
+      }
+      if (!_continuousListening) {
+        debugPrint('[VoiceCallService] Restart cancelled - continuous disabled');
+        return;
+      }
+      if (_isListening) {
+        debugPrint('[VoiceCallService] Restart skipped - already listening');
+        return;
+      }
+      
+      debugPrint('[VoiceCallService] ✓ Restarting listening now');
+      _isListening = true;
+      onListeningStateChanged?.call(true);
+      await _startListeningInternal();
     });
+  }
+  
+  /// Block mic from restarting (call before processing AI response)
+  void blockMicRestarts() {
+    debugPrint('[VoiceCallService] 🔒 Mic restarts BLOCKED');
+    _blockMicRestarts = true;
+    _restartTimer?.cancel();
+  }
+  
+  /// Unblock mic restarts (call after AI finishes speaking)
+  void unblockMicRestarts() {
+    debugPrint('[VoiceCallService] 🔓 Mic restarts UNBLOCKED');
+    _blockMicRestarts = false;
   }
 
   /// Stop listening completely (disables continuous mode)
@@ -513,12 +562,26 @@ class VoiceCallService {
 
   /// Speak text using the active TTS engine
   /// Uses Google Cloud Wavenet (natural voice) if available, falls back to Flutter TTS
+  /// IMPORTANT: Blocks mic restarts during entire speak operation
+  /// Mic will be unblocked by screen when state transitions back to idle
   Future<void> speak(String text) async {
     if (text.isEmpty) return;
 
-    // Stop listening while speaking
+    // CRITICAL: Block mic restarts for entire speak operation
+    // DO NOT unblock here - let the screen handle it when AI finishes
+    blockMicRestarts();
+    
+    // Cancel any pending restart timer
+    _restartTimer?.cancel();
+
+    // Stop listening while speaking - important to prevent mic conflicts
     if (_isListening) {
-      await pauseListening();
+      debugPrint('[VoiceCallService] Stopping mic before speaking');
+      _isListening = false;
+      onListeningStateChanged?.call(false);
+      await _stt.stop();
+      // Wait for mic to fully stop
+      await Future.delayed(const Duration(milliseconds: 200));
     }
 
     debugPrint(
@@ -531,6 +594,9 @@ class VoiceCallService {
     } else {
       await _speakWithFlutterTts(text);
     }
+    
+    // DO NOT unblock here! The audio hasn't finished playing yet.
+    // The screen will unblock when it transitions from aiSpeaking to idle.
   }
 
   /// Speak with Flutter TTS (fallback)
@@ -597,6 +663,7 @@ class VoiceCallService {
     onUsageWarning = null;
 
     _continuousListening = false;
+    _blockMicRestarts = true; // Block everything during dispose
     _restartTimer?.cancel();
     await stopListening();
     await stopSpeaking();

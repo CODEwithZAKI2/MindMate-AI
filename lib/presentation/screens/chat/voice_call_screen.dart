@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +10,23 @@ import '../../../data/services/voice_call_service.dart';
 import '../../../data/repositories/chat_repository.dart';
 import '../../../domain/services/cloud_functions_service.dart';
 import '../../../domain/entities/chat_session.dart';
+
+/// Voice Call State Machine
+/// Controls the flow of conversation to prevent mic toggling
+enum VoiceCallState {
+  /// Initial connecting state
+  connecting,
+  /// Ready but idle - waiting for user to speak
+  idle,
+  /// User is currently speaking
+  userSpeaking,
+  /// Processing user input, getting AI response
+  processingAI,
+  /// AI is speaking response
+  aiSpeaking,
+  /// Error state
+  error,
+}
 
 /// Full-screen voice call with AI
 /// Uses speech-to-text and text-to-speech for natural conversation
@@ -34,11 +52,15 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   final List<_VoiceMessage> _displayMessages = [];
   final ScrollController _scrollController = ScrollController();
 
-  // Call state
-  bool _isConnecting = true;
-  bool _isListening = false;
-  bool _isSpeaking = false;
-  bool _isProcessing = false;
+  // === STATE MACHINE ===
+  VoiceCallState _callState = VoiceCallState.connecting;
+  
+  // Legacy state flags (kept for compatibility, derived from _callState)
+  bool get _isConnecting => _callState == VoiceCallState.connecting;
+  bool get _isListening => _callState == VoiceCallState.userSpeaking || _callState == VoiceCallState.idle;
+  bool get _isSpeaking => _callState == VoiceCallState.aiSpeaking;
+  bool get _isProcessing => _callState == VoiceCallState.processingAI;
+  
   bool _sttAvailable = false;
   bool _showTextInput = false;
   String _userTranscript = '';
@@ -56,12 +78,23 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   // Animation controllers
   late AnimationController _pulseController;
   late AnimationController _waveController;
+  late AnimationController _breatheController;
+  late AnimationController _userWaveController;
+  
+  // Audio level simulation for visual feedback
+  double _audioLevel = 0.0;
+  Timer? _audioLevelTimer;
+  
+  // Timer for delayed listening start - can be cancelled
+  Timer? _delayedListeningTimer;
 
   // Design colors
   static const _primaryColor = Color(0xFF6366F1);
   static const _secondaryColor = Color(0xFF8B5CF6);
   static const _backgroundColor = Color(0xFF1A1A2E);
   static const _accentColor = Color(0xFF00D9FF);
+  static const _userSpeakingColor = Color(0xFF10B981);
+  static const _aiSpeakingColor = Color(0xFF8B5CF6);
 
   @override
   void initState() {
@@ -71,80 +104,166 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     _voiceSessionId =
         widget.sessionId ?? 'voice_${DateTime.now().millisecondsSinceEpoch}';
 
+    // Main pulse animation for orb
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
 
+    // Wave animation for listening state
     _waveController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
     )..repeat();
+    
+    // Breathing animation for AI speaking (slower, calmer)
+    _breatheController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2500),
+    )..repeat(reverse: true);
+    
+    // User speaking waveform animation
+    _userWaveController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    )..repeat(reverse: true);
 
     _setupVoiceService();
     _initializeCall();
   }
 
+  /// Transition to a new state with proper cleanup
+  void _transitionToState(VoiceCallState newState) {
+    if (_callState == newState) return;
+    
+    final oldState = _callState;
+    debugPrint('[VoiceCall] State: $oldState → $newState');
+    
+    setState(() {
+      _callState = newState;
+    });
+    
+    // Handle state-specific actions
+    switch (newState) {
+      case VoiceCallState.idle:
+        _stopAudioLevelSimulation();
+        // Unblock mic restarts when idle
+        _voiceService.unblockMicRestarts();
+        // Cancel any existing delayed listening timer
+        _delayedListeningTimer?.cancel();
+        // Start listening after a longer delay (avoids mic sound and gives time for audio to settle)
+        _delayedListeningTimer = Timer(const Duration(milliseconds: 1000), () {
+          if (_sttAvailable && !_voiceService.isListening && _callState == VoiceCallState.idle && mounted) {
+            debugPrint('[VoiceCall] Starting listening (delayed)');
+            _voiceService.startListening(continuous: true);
+          }
+        });
+        break;
+      case VoiceCallState.userSpeaking:
+        _startAudioLevelSimulation();
+        break;
+      case VoiceCallState.processingAI:
+        _stopAudioLevelSimulation();
+        // CRITICAL: Cancel delayed listening timer to prevent mic from starting during AI processing
+        _delayedListeningTimer?.cancel();
+        _delayedListeningTimer = null;
+        // CRITICAL: Block mic restarts while getting AI response
+        _voiceService.blockMicRestarts();
+        // Stop listening completely during processing
+        _voiceService.stopListening();
+        break;
+      case VoiceCallState.aiSpeaking:
+        _stopAudioLevelSimulation();
+        // CRITICAL: Cancel delayed listening timer to prevent mic from starting during AI speech
+        _delayedListeningTimer?.cancel();
+        _delayedListeningTimer = null;
+        // Keep mic blocked while AI speaks
+        _voiceService.blockMicRestarts();
+        break;
+      case VoiceCallState.connecting:
+      case VoiceCallState.error:
+        _stopAudioLevelSimulation();
+        break;
+    }
+  }
+  
+  /// Simulate audio level for visual feedback
+  void _startAudioLevelSimulation() {
+    _audioLevelTimer?.cancel();
+    _audioLevelTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (mounted && _callState == VoiceCallState.userSpeaking) {
+        setState(() {
+          // Simulate varying audio levels
+          _audioLevel = 0.3 + (math.Random().nextDouble() * 0.7);
+        });
+      }
+    });
+  }
+  
+  void _stopAudioLevelSimulation() {
+    _audioLevelTimer?.cancel();
+    if (mounted) {
+      setState(() => _audioLevel = 0.0);
+    }
+  }
+
   void _setupVoiceService() {
     _voiceService.onSpeechResult = (text) {
-      if (mounted) setState(() => _userTranscript = text);
+      if (mounted && text.isNotEmpty) {
+        // User started speaking - transition to userSpeaking
+        if (_callState == VoiceCallState.idle) {
+          _transitionToState(VoiceCallState.userSpeaking);
+        }
+        setState(() => _userTranscript = text);
+      }
     };
 
-    // Process speech when we get a final result (not on listening state change)
+    // Process speech when we get a final result
     _voiceService.onFinalResult = (finalText) {
-      if (mounted && finalText.isNotEmpty && !_isProcessing && !_isSpeaking) {
-        debugPrint('Got final result - processing: "$finalText"');
+      if (mounted && finalText.isNotEmpty && _callState != VoiceCallState.processingAI && _callState != VoiceCallState.aiSpeaking) {
+        debugPrint('[VoiceCall] Final result - processing: "$finalText"');
+        // CRITICAL: Block mic immediately to prevent restart during processing
+        _voiceService.blockMicRestarts();
         setState(() => _userTranscript = finalText);
         _processUserSpeech();
       }
     };
 
     _voiceService.onListeningStateChanged = (listening) {
-      if (mounted) setState(() => _isListening = listening);
-      // Don't process here anymore - wait for onFinalResult
+      // Only update UI, don't change state machine here
+      debugPrint('[VoiceCall] Listening state changed: $listening');
     };
 
     _voiceService.onSpeakingStateChanged = (speaking) {
-      if (mounted) setState(() => _isSpeaking = speaking);
-      // Intelligent hands-free mode: auto-restart listening after AI speaks
-      // This is handled in the voice service TTS completion handler
-      // But we add a fallback here just in case
-      if (!speaking && !_isProcessing && mounted && _sttAvailable) {
-        Future.delayed(const Duration(milliseconds: 800), () {
-          if (mounted &&
-              !_voiceService.isListening &&
-              !_isSpeaking &&
-              !_isProcessing) {
-            debugPrint('Auto-activating mic after AI response');
-            _startListening();
-          }
-        });
+      debugPrint('[VoiceCall] Speaking state changed: $speaking');
+      if (speaking) {
+        // AI started speaking - ensure we're in aiSpeaking state
+        if (_callState != VoiceCallState.aiSpeaking) {
+          _transitionToState(VoiceCallState.aiSpeaking);
+        }
+      } else if (_callState == VoiceCallState.aiSpeaking) {
+        // AI finished speaking - go back to idle
+        // This will unblock mic and start listening
+        debugPrint('[VoiceCall] AI finished speaking - transitioning to idle');
+        _transitionToState(VoiceCallState.idle);
       }
     };
 
     _voiceService.onError = (error) {
-      debugPrint('Voice service error: $error');
-      // Don't show transient errors to user, just log them
+      debugPrint('[VoiceCall] Voice service error: $error');
+      // Don't show transient errors, just log them
       if (error.contains('permission') || error.contains('unavailable')) {
         if (mounted) setState(() => _errorMessage = error);
       }
     };
   }
 
-  /// Interrupt AI speaking when user starts talking
+  /// Interrupt AI speaking when user taps
   Future<void> _interruptAI() async {
-    if (_isSpeaking) {
-      debugPrint('User interrupting AI speech');
+    if (_callState == VoiceCallState.aiSpeaking) {
+      debugPrint('[VoiceCall] User interrupting AI');
       await _voiceService.stopSpeaking();
-      setState(() => _isSpeaking = false);
-      // Restart listening after interruption
-      if (_sttAvailable && mounted) {
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (mounted && !_isProcessing) {
-            _startListening();
-          }
-        });
-      }
+      _transitionToState(VoiceCallState.idle);
     }
   }
 
@@ -178,7 +297,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       if (!micStatus.isGranted) {
         if (mounted) {
           setState(() {
-            _isConnecting = false;
+            _callState = VoiceCallState.idle;
             _errorMessage =
                 'Microphone permission denied. Please grant permission in Settings.';
           });
@@ -300,34 +419,41 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
         debugPrint('Voice session creation error: $e');
       }
 
-      // Mark as connected regardless of TTS/STT status
-      if (mounted) setState(() => _isConnecting = false);
+      // Mark as connected - but if TTS is ready, go to processingAI to prevent mic
+      // from starting before the greeting finishes
+      if (ttsReady) {
+        // Go directly to processingAI to block mic and cancel any delayed listening timers
+        if (mounted) _transitionToState(VoiceCallState.processingAI);
+      } else {
+        // No TTS - go to idle which will start listening after delay
+        if (mounted) _transitionToState(VoiceCallState.idle);
+      }
       _startDurationTimer();
 
       // AI greets the user - give extra time for TTS to be fully ready
-      await Future.delayed(const Duration(milliseconds: 1000));
+      await Future.delayed(const Duration(milliseconds: 500));
 
       final greeting = "Hi, I'm here to listen. How are you feeling today?";
       if (mounted) setState(() => _aiResponse = greeting);
 
-      // Start continuous listening mode BEFORE greeting
-      // This enables intelligent hands-free conversation
-      if (sttReady) {
-        await _voiceService.startListening(continuous: true);
-      }
-
       if (ttsReady) {
-        // Speak greeting - listener will auto-activate after TTS completes
+        // Speak greeting - state machine handles transitions via onSpeakingStateChanged
+        // DO NOT transition here - let the callback handle it when audio actually starts
         await _voiceService.speak(greeting);
+        
+        // speak() returns immediately after starting audio - don't do anything here
+        // The onSpeakingStateChanged callback will:
+        // 1. Transition to aiSpeaking when audio starts playing
+        // 2. Transition to idle when audio finishes
       } else if (sttReady) {
-        // TTS not ready but STT is - just start listening
-        debugPrint('TTS unavailable - starting listening directly');
+        // No TTS - just start listening directly (we're already in idle state)
+        // The idle transition above already started the delayed listening timer
       }
     } catch (e) {
       debugPrint('Voice call initialization error: $e');
       if (mounted) {
         setState(() {
-          _isConnecting = false;
+          _callState = VoiceCallState.idle;
           _errorMessage = 'Failed to initialize: $e';
         });
       }
@@ -398,18 +524,17 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
   Future<void> _processUserSpeech() async {
     if (_userTranscript.isEmpty) {
-      return; // Don't restart here, continuous mode handles it
+      return;
     }
 
-    // Pause listening while processing (but keep continuous mode enabled)
-    await _voiceService.pauseListening();
+    // Transition to processing state
+    _transitionToState(VoiceCallState.processingAI);
 
     // Store the user's message before clearing
     final userMessage = _userTranscript;
     final messageTimestamp = DateTime.now();
 
     setState(() {
-      _isProcessing = true;
       _aiResponse = '';
       // Add user message to display list
       _displayMessages.add(
@@ -481,27 +606,18 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
         ),
       );
 
-      // Speak the response - mic will auto-activate after AI finishes
-      // Clear transcript for next turn
+      // Speak the response - let onSpeakingStateChanged handle state transitions
       setState(() => _userTranscript = '');
+      // DON'T transition here - speak() calls blockMicRestarts() and 
+      // onSpeakingStateChanged will handle the transition when audio starts
       await _voiceService.speak(aiText);
-      // After speaking, listener auto-restarts (handled in voice service)
     } catch (e) {
-      debugPrint('Error processing speech: $e');
+      debugPrint('[VoiceCall] Error processing speech: $e');
       setState(() => _userTranscript = '');
+      // On error, speak error message
       await _voiceService.speak(
         "I'm sorry, I couldn't process that. Could you try again?",
       );
-    } finally {
-      setState(() => _isProcessing = false);
-      // Ensure listening restarts after processing
-      if (_sttAvailable && mounted && !_voiceService.isListening) {
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted && !_isSpeaking && !_isProcessing) {
-            _startListening();
-          }
-        });
-      }
     }
   }
 
@@ -541,8 +657,12 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   @override
   void dispose() {
     _durationTimer?.cancel();
+    _audioLevelTimer?.cancel();
+    _delayedListeningTimer?.cancel();
     _pulseController.dispose();
     _waveController.dispose();
+    _breatheController.dispose();
+    _userWaveController.dispose();
     _textController.dispose();
     _scrollController.dispose();
     _voiceService.dispose();
@@ -722,92 +842,350 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     );
   }
 
-  /// Compact orb with tap-to-interrupt
+  /// Compact orb with tap-to-interrupt and state-specific animations
   Widget _buildCompactOrbAndStatus() {
     return GestureDetector(
-      onTap: _isSpeaking ? _interruptAI : null,
+      onTap: _callState == VoiceCallState.aiSpeaking ? _interruptAI : null,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            AnimatedBuilder(
-              animation: _pulseController,
-              builder: (context, child) {
-                final scale = 1.0 + (_pulseController.value * 0.1);
-                final shouldAnimate = _isSpeaking || _isListening;
-                return Transform.scale(
-                  scale: shouldAnimate ? scale : 1.0,
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          (shouldAnimate ? _accentColor : _primaryColor)
-                              .withOpacity(0.8),
-                          _secondaryColor.withOpacity(0.4),
-                        ],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (shouldAnimate ? _accentColor : _primaryColor)
-                              .withOpacity(0.3),
-                          blurRadius: shouldAnimate ? 20 : 10,
-                          spreadRadius: shouldAnimate ? 5 : 2,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      _isSpeaking
-                          ? Icons.record_voice_over_rounded
-                          : _isListening
-                          ? Icons.mic_rounded
-                          : Icons.headset_mic_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _buildStatusString(),
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                if (_isSpeaking)
-                  Text(
-                    'Tap to interrupt',
-                    style: TextStyle(
-                      color: _accentColor.withOpacity(0.8),
-                      fontSize: 11,
-                    ),
-                  ),
-              ],
-            ),
+            // Animated orb based on state
+            _buildStateOrb(),
+            const SizedBox(height: 12),
+            // Status text
+            _buildStateStatusText(),
           ],
         ),
       ),
     );
   }
+  
+  /// State-specific animated orb
+  Widget _buildStateOrb() {
+    switch (_callState) {
+      case VoiceCallState.userSpeaking:
+        return _buildUserSpeakingOrb();
+      case VoiceCallState.aiSpeaking:
+        return _buildAISpeakingOrb();
+      case VoiceCallState.processingAI:
+        return _buildProcessingOrb();
+      case VoiceCallState.idle:
+        return _buildIdleOrb();
+      case VoiceCallState.connecting:
+        return _buildConnectingOrb();
+      case VoiceCallState.error:
+        return _buildErrorOrb();
+    }
+  }
+  
+  /// User speaking - green pulsing orb with waveform
+  Widget _buildUserSpeakingOrb() {
+    return AnimatedBuilder(
+      animation: _userWaveController,
+      builder: (context, child) {
+        return Container(
+          width: 80,
+          height: 80,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Outer wave rings
+              ...List.generate(3, (index) {
+                final delay = index * 0.2;
+                final scale = 1.0 + (_audioLevel * 0.5 * (index + 1) * 0.3);
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 60 * scale,
+                  height: 60 * scale,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: _userSpeakingColor.withOpacity(0.3 - (index * 0.1)),
+                      width: 2,
+                    ),
+                  ),
+                );
+              }),
+              // Core orb
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 50 + (_audioLevel * 10),
+                height: 50 + (_audioLevel * 10),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      _userSpeakingColor,
+                      _userSpeakingColor.withOpacity(0.7),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _userSpeakingColor.withOpacity(0.5),
+                      blurRadius: 20 + (_audioLevel * 15),
+                      spreadRadius: 5 + (_audioLevel * 5),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.mic_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+  
+  /// AI speaking - purple breathing orb
+  Widget _buildAISpeakingOrb() {
+    return AnimatedBuilder(
+      animation: _breatheController,
+      builder: (context, child) {
+        final breathe = 1.0 + (_breatheController.value * 0.15);
+        return Container(
+          width: 80,
+          height: 80,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Breathing glow
+              Transform.scale(
+                scale: breathe,
+                child: Container(
+                  width: 70,
+                  height: 70,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: _aiSpeakingColor.withOpacity(0.4),
+                        blurRadius: 30,
+                        spreadRadius: 10,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Core orb
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      _aiSpeakingColor,
+                      _aiSpeakingColor.withOpacity(0.7),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _aiSpeakingColor.withOpacity(0.5),
+                      blurRadius: 20,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.record_voice_over_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+  
+  /// Processing - spinning indicator
+  Widget _buildProcessingOrb() {
+    return SizedBox(
+      width: 80,
+      height: 80,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Spinning ring
+          SizedBox(
+            width: 60,
+            height: 60,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                _primaryColor.withOpacity(0.7),
+              ),
+            ),
+          ),
+          // Core orb
+          Container(
+            width: 45,
+            height: 45,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _primaryColor.withOpacity(0.3),
+            ),
+            child: Icon(
+              Icons.psychology_rounded,
+              color: Colors.white.withOpacity(0.8),
+              size: 22,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  /// Idle - subtle pulsing ready state
+  Widget _buildIdleOrb() {
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        final pulse = 1.0 + (_pulseController.value * 0.08);
+        return Transform.scale(
+          scale: pulse,
+          child: Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  _accentColor.withOpacity(0.8),
+                  _primaryColor.withOpacity(0.5),
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _accentColor.withOpacity(0.3),
+                  blurRadius: 15,
+                  spreadRadius: 3,
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.mic_none_rounded,
+              color: Colors.white.withOpacity(0.9),
+              size: 22,
+            ),
+          ),
+        );
+      },
+    );
+  }
+  
+  /// Connecting orb
+  Widget _buildConnectingOrb() {
+    return SizedBox(
+      width: 50,
+      height: 50,
+      child: CircularProgressIndicator(
+        strokeWidth: 2,
+        valueColor: AlwaysStoppedAnimation<Color>(_accentColor),
+      ),
+    );
+  }
+  
+  /// Error orb
+  Widget _buildErrorOrb() {
+    return Container(
+      width: 50,
+      height: 50,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.red.withOpacity(0.3),
+      ),
+      child: const Icon(
+        Icons.error_outline_rounded,
+        color: Colors.red,
+        size: 24,
+      ),
+    );
+  }
+  
+  /// State-specific status text
+  Widget _buildStateStatusText() {
+    String statusText;
+    String? subText;
+    Color statusColor;
+    
+    switch (_callState) {
+      case VoiceCallState.connecting:
+        statusText = _connectingStatus;
+        statusColor = Colors.white.withOpacity(0.7);
+        break;
+      case VoiceCallState.idle:
+        statusText = 'Listening...';
+        subText = 'Start speaking whenever you\'re ready';
+        statusColor = _accentColor;
+        break;
+      case VoiceCallState.userSpeaking:
+        statusText = 'Hearing you...';
+        statusColor = _userSpeakingColor;
+        break;
+      case VoiceCallState.processingAI:
+        statusText = 'Thinking...';
+        statusColor = _primaryColor;
+        break;
+      case VoiceCallState.aiSpeaking:
+        statusText = 'MindMate is speaking';
+        subText = 'Tap to interrupt';
+        statusColor = _aiSpeakingColor;
+        break;
+      case VoiceCallState.error:
+        statusText = 'Error';
+        subText = _errorMessage;
+        statusColor = Colors.red;
+        break;
+    }
+    
+    return Column(
+      children: [
+        Text(
+          statusText,
+          style: TextStyle(
+            color: statusColor,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (subText != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              subText,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 12,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 
   String _buildStatusString() {
-    if (_isConnecting) return _connectingStatus;
-    if (_isProcessing) return 'Thinking...';
-    if (_isSpeaking) return 'Speaking...';
-    if (_isListening) return 'Listening...';
-    if (_sttAvailable) return 'Ready';
-    return 'Type message';
+    switch (_callState) {
+      case VoiceCallState.connecting:
+        return _connectingStatus;
+      case VoiceCallState.idle:
+        return 'Ready';
+      case VoiceCallState.userSpeaking:
+        return 'Listening...';
+      case VoiceCallState.processingAI:
+        return 'Thinking...';
+      case VoiceCallState.aiSpeaking:
+        return 'Speaking...';
+      case VoiceCallState.error:
+        return 'Error';
+    }
   }
 
   /// Shows what the user is currently saying
