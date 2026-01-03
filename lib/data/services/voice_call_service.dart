@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -9,6 +10,7 @@ class VoiceCallService {
   final stt.SpeechToText _stt = stt.SpeechToText();
 
   bool _sttAvailable = false;
+  bool _ttsReady = false;
   bool _isSpeaking = false;
   bool _isListening = false;
 
@@ -17,32 +19,65 @@ class VoiceCallService {
   Function(bool)? onListeningStateChanged;
   Function(bool)? onSpeakingStateChanged;
   Function(String)? onError;
+  Function()? onTtsReady;
 
-  VoiceCallService() {
-    _initTts();
-  }
+  VoiceCallService();
 
-  Future<void> _initTts() async {
-    await _tts.setLanguage('en-US');
-    await _tts.setSpeechRate(0.5); // Slightly slower for clarity
-    await _tts.setVolume(1.0);
-    await _tts.setPitch(1.0);
+  /// Initialize TTS engine and wait for it to be ready
+  Future<bool> initTts() async {
+    debugPrint('Initializing TTS...');
 
-    _tts.setStartHandler(() {
-      _isSpeaking = true;
-      onSpeakingStateChanged?.call(true);
-    });
+    final completer = Completer<bool>();
 
-    _tts.setCompletionHandler(() {
-      _isSpeaking = false;
-      onSpeakingStateChanged?.call(false);
-    });
+    try {
+      // Set up handlers first
+      _tts.setStartHandler(() {
+        _isSpeaking = true;
+        onSpeakingStateChanged?.call(true);
+      });
 
-    _tts.setErrorHandler((msg) {
-      _isSpeaking = false;
-      onSpeakingStateChanged?.call(false);
-      onError?.call('TTS Error: $msg');
-    });
+      _tts.setCompletionHandler(() {
+        _isSpeaking = false;
+        onSpeakingStateChanged?.call(false);
+      });
+
+      _tts.setErrorHandler((msg) {
+        debugPrint('TTS Error: $msg');
+        _isSpeaking = false;
+        onSpeakingStateChanged?.call(false);
+      });
+
+      // Check available engines
+      final engines = await _tts.getEngines;
+      debugPrint('Available TTS engines: $engines');
+
+      if (engines.isEmpty) {
+        debugPrint('No TTS engines available');
+        return false;
+      }
+
+      // Set language and wait for it
+      final langResult = await _tts.setLanguage('en-US');
+      debugPrint('TTS setLanguage result: $langResult');
+
+      await _tts.setSpeechRate(0.45);
+      await _tts.setVolume(1.0);
+      await _tts.setPitch(1.0);
+
+      // Wait a moment for engine to fully bind
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Test if TTS is working
+      final isLangAvailable = await _tts.isLanguageAvailable('en-US');
+      debugPrint('TTS language available: $isLangAvailable');
+
+      _ttsReady = true;
+      onTtsReady?.call();
+      return true;
+    } catch (e) {
+      debugPrint('TTS init error: $e');
+      return false;
+    }
   }
 
   /// Initialize speech-to-text
@@ -51,7 +86,7 @@ class VoiceCallService {
       _sttAvailable = await _stt.initialize(
         onError: (error) {
           debugPrint('STT Error: $error');
-          onError?.call('Speech recognition error: ${error.errorMsg}');
+          onError?.call('Speech error: ${error.errorMsg}');
         },
         onStatus: (status) {
           debugPrint('STT Status: $status');
@@ -61,6 +96,7 @@ class VoiceCallService {
           }
         },
       );
+      debugPrint('STT available: $_sttAvailable');
       return _sttAvailable;
     } catch (e) {
       debugPrint('STT init error: $e');
@@ -71,6 +107,9 @@ class VoiceCallService {
 
   /// Check if STT is available
   bool get isSttAvailable => _sttAvailable;
+
+  /// Check if TTS is ready
+  bool get isTtsReady => _ttsReady;
 
   /// Check if currently speaking
   bool get isSpeaking => _isSpeaking;
@@ -124,9 +163,22 @@ class VoiceCallService {
       await stopListening();
     }
 
+    if (!_ttsReady) {
+      debugPrint('TTS not ready, initializing...');
+      await initTts();
+    }
+
     _isSpeaking = true;
     onSpeakingStateChanged?.call(true);
-    await _tts.speak(text);
+
+    try {
+      final result = await _tts.speak(text);
+      debugPrint('TTS speak result: $result');
+    } catch (e) {
+      debugPrint('TTS speak error: $e');
+      _isSpeaking = false;
+      onSpeakingStateChanged?.call(false);
+    }
   }
 
   /// Stop speaking

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../data/services/voice_call_service.dart';
 import '../../../domain/services/cloud_functions_service.dart';
 import '../../../domain/entities/chat_session.dart';
@@ -36,6 +37,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   String _callDuration = '00:00';
   int _seconds = 0;
   Timer? _durationTimer;
+  String _errorMessage = '';
 
   // Animation controllers
   late AnimationController _pulseController;
@@ -82,30 +84,65 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       if (!speaking && !_isProcessing) {
         // AI finished speaking, start listening again
         Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) _startListening();
+          if (mounted && _voiceService.isSttAvailable) _startListening();
         });
       }
     };
 
     _voiceService.onError = (error) {
       debugPrint('Voice service error: $error');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), backgroundColor: Colors.red),
-        );
-      }
+      setState(() => _errorMessage = error);
     };
   }
 
   Future<void> _initializeCall() async {
+    debugPrint('Initializing voice call...');
+
+    // Request microphone permission at runtime
+    debugPrint('Requesting microphone permission...');
+    final micStatus = await Permission.microphone.request();
+    debugPrint('Microphone permission status: $micStatus');
+
+    if (!micStatus.isGranted) {
+      setState(() {
+        _isConnecting = false;
+        _errorMessage = 'Microphone permission denied';
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Microphone permission is required for voice calls',
+            ),
+            backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'Settings',
+              textColor: Colors.white,
+              onPressed: () => openAppSettings(),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Request speech permission (needed on some devices)
+    debugPrint('Requesting speech permission...');
+    final speechStatus = await Permission.speech.request();
+    debugPrint('Speech permission status: $speechStatus');
+
     // Initialize STT
+    debugPrint('Initializing speech-to-text...');
     final sttReady = await _voiceService.initStt();
+    debugPrint('STT initialized: $sttReady');
 
     if (!sttReady && mounted) {
+      setState(() => _errorMessage = 'Speech recognition unavailable');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Speech recognition not available on this device'),
+          content: Text('Speech recognition not available. Text-only mode.'),
           backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
         ),
       );
     }
@@ -133,7 +170,10 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
   void _startListening() async {
     if (_isSpeaking || _isProcessing) return;
-    setState(() => _userTranscript = '');
+    setState(() {
+      _userTranscript = '';
+      _errorMessage = '';
+    });
     await _voiceService.startListening();
   }
 
@@ -236,6 +276,13 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
             _buildCenterOrb(),
             const SizedBox(height: 32),
             _buildStatusText(),
+            if (_errorMessage.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                _errorMessage,
+                style: TextStyle(color: Colors.red.shade300, fontSize: 12),
+              ),
+            ],
             const Spacer(),
             _buildTranscriptArea(),
             const SizedBox(height: 24),
