@@ -3,11 +3,25 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import '../../core/services/google_cloud_tts_service.dart';
+
+/// TTS Engine selection
+enum TtsEngine {
+  /// Google Cloud Wavenet - natural human-like voice (requires API key)
+  googleCloudWavenet,
+  /// Flutter TTS - device's built-in TTS (fallback)
+  flutterTts,
+}
 
 /// Service for managing voice call functionality
 /// Handles speech-to-text (STT) and text-to-speech (TTS)
+/// Supports both Google Cloud Wavenet (natural voice) and Flutter TTS (fallback)
 class VoiceCallService {
+  // TTS Engines
   FlutterTts? _tts;
+  final GoogleCloudTtsService _googleCloudTts = GoogleCloudTtsService();
+  TtsEngine _activeTtsEngine = TtsEngine.flutterTts;
+  
   final stt.SpeechToText _stt = stt.SpeechToText();
 
   bool _sttAvailable = false;
@@ -23,12 +37,95 @@ class VoiceCallService {
   Function(bool)? onSpeakingStateChanged;
   Function(String)? onError;
   Function()? onTtsReady;
+  Function(int usedChars, int limit)? onUsageWarning; // Google Cloud TTS usage warning
 
   VoiceCallService();
 
-  /// Initialize TTS engine and wait for it to be ready
-  Future<bool> initTts() async {
-    debugPrint('Initializing TTS...');
+  /// Get the active TTS engine
+  TtsEngine get activeTtsEngine => _activeTtsEngine;
+
+  /// Initialize TTS engine - tries Google Cloud Wavenet first, falls back to Flutter TTS
+  Future<bool> initTts({String? googleCloudApiKey}) async {
+    debugPrint('[VoiceCallService] Initializing TTS...');
+
+    // Try Google Cloud Wavenet first (natural human-like voice)
+    bool googleCloudInitialized = false;
+    try {
+      googleCloudInitialized = await _initGoogleCloudTts(googleCloudApiKey);
+    } catch (e) {
+      debugPrint('[VoiceCallService] Google Cloud TTS init error: $e');
+    }
+
+    if (googleCloudInitialized) {
+      _activeTtsEngine = TtsEngine.googleCloudWavenet;
+      _ttsReady = true;
+      onTtsReady?.call();
+      debugPrint('[VoiceCallService] ✓ Using Google Cloud Wavenet TTS (natural voice)');
+      return true;
+    }
+
+    // Fallback to Flutter TTS (device voice)
+    debugPrint('[VoiceCallService] Falling back to Flutter TTS (device voice)');
+    final flutterTtsInitialized = await _initFlutterTts();
+    
+    if (flutterTtsInitialized) {
+      _activeTtsEngine = TtsEngine.flutterTts;
+      _ttsReady = true;
+      onTtsReady?.call();
+      debugPrint('[VoiceCallService] ✓ Using Flutter TTS (device voice)');
+      return true;
+    }
+
+    debugPrint('[VoiceCallService] ✗ All TTS engines failed to initialize');
+    onError?.call('No text-to-speech engine available');
+    return false;
+  }
+
+  /// Initialize Google Cloud TTS (Wavenet - natural voice)
+  Future<bool> _initGoogleCloudTts(String? apiKey) async {
+    debugPrint('[VoiceCallService] Initializing Google Cloud TTS...');
+
+    // Setup callbacks
+    _googleCloudTts.onSpeakingStateChanged = (speaking) {
+      _isSpeaking = speaking;
+      onSpeakingStateChanged?.call(speaking);
+      
+      // Auto-restart listening after AI finishes speaking
+      if (!speaking && _continuousListening) {
+        debugPrint('[VoiceCallService] AI finished speaking - auto-starting listener');
+        _scheduleRestartListening();
+      }
+    };
+
+    _googleCloudTts.onError = (error) {
+      debugPrint('[VoiceCallService] Google Cloud TTS error: $error');
+      onError?.call(error);
+    };
+
+    _googleCloudTts.onComplete = () {
+      debugPrint('[VoiceCallService] Google Cloud TTS completed');
+    };
+
+    _googleCloudTts.onUsageWarning = (used, limit) {
+      debugPrint('[VoiceCallService] TTS Usage warning: $used / $limit characters');
+      onUsageWarning?.call(used, limit);
+    };
+
+    // Configure voice for mental wellness (warm, caring tone)
+    _googleCloudTts.setVoice(
+      voiceName: 'en-US-Neural2-F', // Neural2-F is very natural female voice
+      languageCode: 'en-US',
+      speakingRate: 0.92, // Slightly slower for warmth and clarity
+      pitch: 0.0, // Natural pitch
+      volumeGainDb: 1.0, // Slightly louder for clarity
+    );
+
+    return await _googleCloudTts.initialize(apiKey: apiKey);
+  }
+
+  /// Initialize Flutter TTS (fallback - device voice)
+  Future<bool> _initFlutterTts() async {
+    debugPrint('[VoiceCallService] Initializing Flutter TTS (fallback)...');
 
     try {
       // Create new instance to ensure clean state
@@ -176,16 +273,45 @@ class VoiceCallService {
       // Enable await speak completion for synchronous behavior
       await _tts!.awaitSpeakCompletion(true);
 
-      _ttsReady = true;
-      onTtsReady?.call();
-      debugPrint('TTS initialization complete!');
+      debugPrint('[VoiceCallService] Flutter TTS initialization complete!');
       return true;
     } catch (e) {
-      debugPrint('TTS init error: $e');
-      onError?.call('Failed to initialize text-to-speech: $e');
+      debugPrint('[VoiceCallService] Flutter TTS init error: $e');
       return false;
     }
   }
+
+  /// Set Google Cloud API key (can be set after initialization)
+  Future<void> setGoogleCloudApiKey(String apiKey) async {
+    await _googleCloudTts.setApiKey(apiKey);
+    
+    // Re-initialize with new key
+    final success = await _googleCloudTts.initialize(apiKey: apiKey);
+    if (success) {
+      _activeTtsEngine = TtsEngine.googleCloudWavenet;
+      debugPrint('[VoiceCallService] Switched to Google Cloud Wavenet TTS');
+    }
+  }
+
+  /// Check if Google Cloud API key is configured
+  Future<bool> hasGoogleCloudApiKey() async {
+    return await _googleCloudTts.hasApiKey();
+  }
+
+  /// Get TTS usage statistics (for Google Cloud TTS)
+  Future<Map<String, dynamic>> getTtsUsageStats() async {
+    return await _googleCloudTts.getUsageStats();
+  }
+
+  /// Set preferred voice (for Google Cloud TTS)
+  void setPreferredVoice(String voiceName) {
+    _googleCloudTts.setVoice(voiceName: voiceName);
+    debugPrint('[VoiceCallService] Voice set to: $voiceName');
+  }
+
+  /// Get list of available voices (for Google Cloud TTS)
+  /// Returns a map of voice name to description
+  Map<String, String> get availableVoices => GoogleCloudTtsService.availableVoices;
 
   /// Initialize speech-to-text
   Future<bool> initStt() async {
@@ -383,20 +509,35 @@ class VoiceCallService {
     await _stt.stop();
   }
 
-  /// Speak text using TTS
+  /// Speak text using the active TTS engine
+  /// Uses Google Cloud Wavenet (natural voice) if available, falls back to Flutter TTS
   Future<void> speak(String text) async {
     if (text.isEmpty) return;
 
     // Stop listening while speaking
     if (_isListening) {
-      await stopListening();
+      await pauseListening();
     }
 
+    debugPrint(
+      '[VoiceCallService] Speaking with ${_activeTtsEngine == TtsEngine.googleCloudWavenet ? "Google Cloud Wavenet" : "Flutter TTS"}',
+    );
+
+    // Use Google Cloud TTS if available and ready
+    if (_activeTtsEngine == TtsEngine.googleCloudWavenet && _googleCloudTts.isReady) {
+      await _googleCloudTts.speak(text);
+    } else {
+      await _speakWithFlutterTts(text);
+    }
+  }
+
+  /// Speak with Flutter TTS (fallback)
+  Future<void> _speakWithFlutterTts(String text) async {
     if (!_ttsReady || _tts == null) {
-      debugPrint('TTS not ready, initializing...');
-      final success = await initTts();
+      debugPrint('[VoiceCallService] TTS not ready, initializing...');
+      final success = await _initFlutterTts();
       if (!success) {
-        debugPrint('TTS initialization failed, cannot speak');
+        debugPrint('[VoiceCallService] TTS initialization failed, cannot speak');
         onError?.call('Voice output unavailable. Showing text instead.');
         // Still trigger speaking state change so UI can show the text
         onSpeakingStateChanged?.call(true);
@@ -404,6 +545,7 @@ class VoiceCallService {
         onSpeakingStateChanged?.call(false);
         return;
       }
+      _ttsReady = true;
     }
 
     _isSpeaking = true;
@@ -411,26 +553,29 @@ class VoiceCallService {
 
     try {
       debugPrint(
-        'TTS speaking: "${text.substring(0, text.length > 50 ? 50 : text.length)}..."',
+        '[VoiceCallService] Flutter TTS speaking: "${text.substring(0, text.length > 50 ? 50 : text.length)}..."',
       );
       final result = await _tts!.speak(text);
-      debugPrint('TTS speak result: $result');
+      debugPrint('[VoiceCallService] Flutter TTS speak result: $result');
 
       if (result != 1) {
-        debugPrint('TTS speak failed with result: $result');
+        debugPrint('[VoiceCallService] Flutter TTS speak failed with result: $result');
         _isSpeaking = false;
         onSpeakingStateChanged?.call(false);
       }
     } catch (e) {
-      debugPrint('TTS speak error: $e');
+      debugPrint('[VoiceCallService] Flutter TTS speak error: $e');
       _isSpeaking = false;
       onSpeakingStateChanged?.call(false);
       onError?.call('Failed to speak: $e');
     }
   }
 
-  /// Stop speaking
+  /// Stop speaking (both engines)
   Future<void> stopSpeaking() async {
+    if (_activeTtsEngine == TtsEngine.googleCloudWavenet) {
+      await _googleCloudTts.stop();
+    }
     if (_tts != null) {
       await _tts!.stop();
     }
@@ -442,16 +587,19 @@ class VoiceCallService {
   Future<void> dispose() async {
     // Clear callbacks first to prevent setState after dispose
     onSpeechResult = null;
+    onFinalResult = null;
     onListeningStateChanged = null;
     onSpeakingStateChanged = null;
     onError = null;
     onTtsReady = null;
+    onUsageWarning = null;
 
     _continuousListening = false;
     _restartTimer?.cancel();
     await stopListening();
     await stopSpeaking();
     await _stt.cancel();
+    await _googleCloudTts.dispose();
     if (_tts != null) {
       await _tts!.stop();
     }

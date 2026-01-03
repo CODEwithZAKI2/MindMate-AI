@@ -218,7 +218,10 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       debugPrint('Initializing text-to-speech...');
       bool ttsReady = false;
       try {
-        ttsReady = await _voiceService.initTts().timeout(
+        // Use Google Cloud Wavenet TTS for natural human-like voice
+        ttsReady = await _voiceService.initTts(
+          googleCloudApiKey: 'AIzaSyBq3pkFHajhAiYMa-zXFkNzEdh5v_x7tVc',
+        ).timeout(
           const Duration(seconds: 10),
           onTimeout: () {
             debugPrint('TTS initialization timed out');
