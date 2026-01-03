@@ -87,6 +87,10 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   
   // Timer for delayed listening start - can be cancelled
   Timer? _delayedListeningTimer;
+  
+  // Pending AI response - shown when voice starts playing
+  String? _pendingAiResponse;
+  _VoiceMessage? _pendingAiMessage;
 
   // Design colors
   static const _primaryColor = Color(0xFF6366F1);
@@ -240,6 +244,18 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
         // AI started speaking - ensure we're in aiSpeaking state
         if (_callState != VoiceCallState.aiSpeaking) {
           _transitionToState(VoiceCallState.aiSpeaking);
+        }
+        // Show the pending AI response text now that voice is playing
+        if (_pendingAiResponse != null && mounted) {
+          setState(() {
+            _aiResponse = _pendingAiResponse!;
+            if (_pendingAiMessage != null) {
+              _displayMessages.add(_pendingAiMessage!);
+            }
+            _pendingAiResponse = null;
+            _pendingAiMessage = null;
+          });
+          _scrollToBottom();
         }
       } else if (_callState == VoiceCallState.aiSpeaking) {
         // AI finished speaking - go back to idle
@@ -434,11 +450,14 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       await Future.delayed(const Duration(milliseconds: 500));
 
       final greeting = "Hi, I'm here to listen. How are you feeling today?";
-      if (mounted) setState(() => _aiResponse = greeting);
-
+      
       if (ttsReady) {
+        // Store greeting as pending - will show when voice starts
+        _pendingAiResponse = greeting;
+        _pendingAiMessage = null; // Greeting doesn't go in message list
+        
         // Speak greeting - state machine handles transitions via onSpeakingStateChanged
-        // DO NOT transition here - let the callback handle it when audio actually starts
+        // Text will be shown when onSpeakingStateChanged fires with speaking=true
         await _voiceService.speak(greeting);
         
         // speak() returns immediately after starting audio - don't do anything here
@@ -585,16 +604,10 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       );
 
       final aiText = response.response;
-      setState(() {
-        _aiResponse = aiText;
-        // Add AI response to display list
-        _displayMessages.add(
-          _VoiceMessage(text: aiText, isUser: false, timestamp: DateTime.now()),
-        );
-      });
-
-      // Scroll to bottom after adding AI message
-      _scrollToBottom();
+      
+      // Store AI response as pending - will show when voice starts
+      _pendingAiResponse = aiText;
+      _pendingAiMessage = _VoiceMessage(text: aiText, isUser: false, timestamp: DateTime.now());
 
       // Add AI response to history (AI message is saved by cloud function)
       _conversationHistory.add(
