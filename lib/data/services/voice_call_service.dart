@@ -17,6 +17,8 @@ class VoiceCallService {
 
   // Callbacks
   Function(String)? onSpeechResult;
+  Function(String)?
+  onFinalResult; // Called when user finishes speaking (final result)
   Function(bool)? onListeningStateChanged;
   Function(bool)? onSpeakingStateChanged;
   Function(String)? onError;
@@ -65,41 +67,46 @@ class VoiceCallService {
       await _tts!.setSpeechRate(0.5);
       // Pitch: 1.05 = slightly warmer, more human tone
       await _tts!.setPitch(1.05);
-      
+
       // Try to get a more natural voice
       if (Platform.isAndroid) {
         try {
           final voices = await _tts!.getVoices;
           debugPrint('Available TTS voices: ${voices?.length ?? 0}');
-          
+
           // Look for Google's neural/natural voices
           if (voices != null && voices is List) {
             // Prefer neural/natural voices for human-like quality
             final voiceList = voices as List<dynamic>;
             Map<String, dynamic>? bestVoice;
-            
+
             for (final voice in voiceList) {
               if (voice is Map) {
                 final name = voice['name']?.toString().toLowerCase() ?? '';
                 final locale = voice['locale']?.toString() ?? '';
-                
+
                 // Look for US English voices with natural/neural qualities
                 if (locale.contains('en') && locale.contains('US')) {
                   // Prefer voices with these keywords (usually better quality)
-                  if (name.contains('neural') || name.contains('wavenet') || 
-                      name.contains('journey') || name.contains('studio') ||
-                      name.contains('polyglot') || name.contains('news')) {
+                  if (name.contains('neural') ||
+                      name.contains('wavenet') ||
+                      name.contains('journey') ||
+                      name.contains('studio') ||
+                      name.contains('polyglot') ||
+                      name.contains('news')) {
                     bestVoice = voice as Map<String, dynamic>;
                     break;
                   }
                   // Fall back to any female voice (often sounds more natural)
-                  if (bestVoice == null && (name.contains('female') || name.contains('en-us-x-sfg'))) {
+                  if (bestVoice == null &&
+                      (name.contains('female') ||
+                          name.contains('en-us-x-sfg'))) {
                     bestVoice = voice as Map<String, dynamic>;
                   }
                 }
               }
             }
-            
+
             if (bestVoice != null) {
               debugPrint('Setting TTS voice to: ${bestVoice['name']}');
               await _tts!.setVoice({
@@ -188,7 +195,9 @@ class VoiceCallService {
           debugPrint('STT Error: $error');
           // Handle specific errors
           if (error.errorMsg == 'error_permission') {
-            onError?.call('Microphone permission denied. Please grant permission to Google app in Settings.');
+            onError?.call(
+              'Microphone permission denied. Please grant permission to Google app in Settings.',
+            );
           } else if (error.errorMsg == 'error_language_not_supported') {
             debugPrint('Language not supported - will continue without STT');
           } else if (error.errorMsg == 'error_speech_timeout') {
@@ -254,7 +263,7 @@ class VoiceCallService {
 
   // Selected locale for STT
   String? _selectedLocale;
-  
+
   // Continuous listening mode - keeps listening until manually stopped
   bool _continuousListening = false;
   Timer? _restartTimer;
@@ -270,7 +279,7 @@ class VoiceCallService {
 
   /// Check if currently listening
   bool get isListening => _isListening;
-  
+
   /// Check if continuous listening is enabled
   bool get isContinuousListening => _continuousListening;
 
@@ -293,23 +302,30 @@ class VoiceCallService {
 
     await _startListeningInternal();
   }
-  
+
   /// Internal method to start STT
   Future<void> _startListeningInternal() async {
     try {
-      debugPrint('Starting STT with locale: $_selectedLocale (continuous: $_continuousListening)');
+      debugPrint(
+        'Starting STT with locale: $_selectedLocale (continuous: $_continuousListening)',
+      );
       await _stt.listen(
         onResult: (result) {
           debugPrint(
             'STT result: ${result.recognizedWords} (final: ${result.finalResult})',
           );
           onSpeechResult?.call(result.recognizedWords);
-          
-          // If we got a final result and continuous mode is on,
-          // we'll let it timeout and auto-restart
+
+          // If we got a final result, notify for processing
+          if (result.finalResult && result.recognizedWords.isNotEmpty) {
+            debugPrint('STT final result received: ${result.recognizedWords}');
+            onFinalResult?.call(result.recognizedWords);
+          }
         },
         listenFor: const Duration(minutes: 5), // Listen for up to 5 minutes
-        pauseFor: const Duration(seconds: 3), // 3 seconds of silence = user finished speaking (like ChatGPT)
+        pauseFor: const Duration(
+          seconds: 5,
+        ), // 5 seconds of silence = user finished speaking (gives more time to complete thoughts)
         partialResults: true,
         localeId: _selectedLocale, // Use selected locale
         listenOptions: stt.SpeechListenOptions(
@@ -326,11 +342,11 @@ class VoiceCallService {
       onError?.call('Failed to start listening: $e');
     }
   }
-  
+
   /// Restart listening after a short delay (for continuous mode)
   void _scheduleRestartListening() {
     if (!_continuousListening || _isSpeaking) return;
-    
+
     _restartTimer?.cancel();
     _restartTimer = Timer(const Duration(milliseconds: 500), () async {
       if (_continuousListening && !_isSpeaking && !_isListening) {
@@ -350,7 +366,7 @@ class VoiceCallService {
     // Don't call callback here - will be called by dispose
     await _stt.stop();
   }
-  
+
   /// Pause listening temporarily (keeps continuous mode enabled)
   Future<void> pauseListening() async {
     _isListening = false;
@@ -430,7 +446,7 @@ class VoiceCallService {
     onSpeakingStateChanged = null;
     onError = null;
     onTtsReady = null;
-    
+
     _continuousListening = false;
     _restartTimer?.cancel();
     await stopListening();

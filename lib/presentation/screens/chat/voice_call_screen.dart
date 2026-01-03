@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../data/services/voice_call_service.dart';
+import '../../../data/repositories/chat_repository.dart';
 import '../../../domain/services/cloud_functions_service.dart';
 import '../../../domain/entities/chat_session.dart';
 
@@ -24,6 +25,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     with TickerProviderStateMixin {
   final VoiceCallService _voiceService = VoiceCallService();
   final CloudFunctionsService _cloudFunctions = CloudFunctionsService();
+  final ChatRepository _chatRepository = ChatRepository();
 
   // Conversation history for context
   final List<ChatMessage> _conversationHistory = [];
@@ -88,17 +90,18 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       if (mounted) setState(() => _userTranscript = text);
     };
 
-    _voiceService.onListeningStateChanged = (listening) {
-      if (mounted) setState(() => _isListening = listening);
-      // Intelligent turn-taking: process speech when user stops talking
-      // The voice service handles the pause detection (3 seconds of silence)
-      if (!listening &&
-          _userTranscript.isNotEmpty &&
-          !_isProcessing &&
-          !_isSpeaking) {
-        debugPrint('User finished speaking - processing: "$_userTranscript"');
+    // Process speech when we get a final result (not on listening state change)
+    _voiceService.onFinalResult = (finalText) {
+      if (mounted && finalText.isNotEmpty && !_isProcessing && !_isSpeaking) {
+        debugPrint('Got final result - processing: "$finalText"');
+        setState(() => _userTranscript = finalText);
         _processUserSpeech();
       }
+    };
+
+    _voiceService.onListeningStateChanged = (listening) {
+      if (mounted) setState(() => _isListening = listening);
+      // Don't process here anymore - wait for onFinalResult
     };
 
     _voiceService.onSpeakingStateChanged = (speaking) {
@@ -134,6 +137,14 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       debugPrint('User interrupting AI speech');
       await _voiceService.stopSpeaking();
       setState(() => _isSpeaking = false);
+      // Restart listening after interruption
+      if (_sttAvailable && mounted) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted && !_isProcessing) {
+            _startListening();
+          }
+        });
+      }
     }
   }
 
@@ -392,6 +403,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
     // Store the user's message before clearing
     final userMessage = _userTranscript;
+    final messageTimestamp = DateTime.now();
 
     setState(() {
       _isProcessing = true;
@@ -401,7 +413,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
         _VoiceMessage(
           text: userMessage,
           isUser: true,
-          timestamp: DateTime.now(),
+          timestamp: messageTimestamp,
         ),
       );
     });
@@ -412,15 +424,28 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // Add user message to history
-    _conversationHistory.add(
-      ChatMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        content: userMessage,
-        role: 'user',
-        timestamp: DateTime.now(),
-      ),
+    // Create user message object
+    final userChatMessage = ChatMessage(
+      id: messageTimestamp.millisecondsSinceEpoch.toString(),
+      content: userMessage,
+      role: 'user',
+      timestamp: messageTimestamp,
     );
+
+    // Add user message to local history
+    _conversationHistory.add(userChatMessage);
+
+    // Save user message to Firestore immediately
+    try {
+      await _chatRepository.addMessageToSession(
+        sessionId: _voiceSessionId,
+        message: userChatMessage,
+      );
+      debugPrint('[VoiceCall] User message saved to Firestore');
+    } catch (e) {
+      debugPrint('[VoiceCall] Error saving user message: $e');
+      // Continue anyway - don't block the conversation
+    }
 
     try {
       // Use existing cloud function with the persistent voice session ID
@@ -443,7 +468,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       // Scroll to bottom after adding AI message
       _scrollToBottom();
 
-      // Add AI response to history
+      // Add AI response to history (AI message is saved by cloud function)
       _conversationHistory.add(
         ChatMessage(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
