@@ -291,7 +291,7 @@ class VoiceCallService {
     _continuousListening = false;
     _restartTimer?.cancel();
     _isListening = false;
-    onListeningStateChanged?.call(false);
+    // Don't call callback here - will be called by dispose
     await _stt.stop();
   }
   
@@ -300,6 +300,15 @@ class VoiceCallService {
     _isListening = false;
     await _stt.stop();
     // Don't disable continuous mode - will restart when needed
+  }
+
+  /// Stop listening and notify (for manual stop, not dispose)
+  Future<void> stopListeningAndNotify() async {
+    _continuousListening = false;
+    _restartTimer?.cancel();
+    _isListening = false;
+    onListeningStateChanged?.call(false);
+    await _stt.stop();
   }
 
   /// Speak text using TTS
@@ -359,6 +368,13 @@ class VoiceCallService {
 
   /// Cleanup resources
   Future<void> dispose() async {
+    // Clear callbacks first to prevent setState after dispose
+    onSpeechResult = null;
+    onListeningStateChanged = null;
+    onSpeakingStateChanged = null;
+    onError = null;
+    onTtsReady = null;
+    
     _continuousListening = false;
     _restartTimer?.cancel();
     await stopListening();

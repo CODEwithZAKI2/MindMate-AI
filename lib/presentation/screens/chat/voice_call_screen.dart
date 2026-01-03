@@ -38,6 +38,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   int _seconds = 0;
   Timer? _durationTimer;
   String _errorMessage = '';
+  String _connectingStatus = 'Initializing...';
 
   // Animation controllers
   late AnimationController _pulseController;
@@ -101,88 +102,138 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   Future<void> _initializeCall() async {
     debugPrint('Initializing voice call...');
 
-    // Request microphone permission at runtime
-    debugPrint('Requesting microphone permission...');
-    final micStatus = await Permission.microphone.request();
-    debugPrint('Microphone permission status: $micStatus');
+    try {
+      // Request microphone permission at runtime with timeout
+      if (mounted) setState(() => _connectingStatus = 'Requesting mic permission...');
+      debugPrint('Requesting microphone permission...');
+      final micStatus = await Permission.microphone.request().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => PermissionStatus.denied,
+      );
+      debugPrint('Microphone permission status: $micStatus');
 
-    if (!micStatus.isGranted) {
-      setState(() {
-        _isConnecting = false;
-        _errorMessage = 'Microphone permission denied';
-      });
-      if (mounted) {
+      if (!micStatus.isGranted) {
+        if (mounted) {
+          setState(() {
+            _isConnecting = false;
+            _errorMessage = 'Microphone permission denied. Please grant permission in Settings.';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Microphone permission is required for voice calls',
+              ),
+              backgroundColor: Colors.red,
+              action: SnackBarAction(
+                label: 'Settings',
+                textColor: Colors.white,
+                onPressed: () => openAppSettings(),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Request speech permission (needed on some devices) with timeout
+      if (mounted) setState(() => _connectingStatus = 'Setting up speech...');
+      debugPrint('Requesting speech permission...');
+      try {
+        await Permission.speech.request().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => PermissionStatus.denied,
+        );
+      } catch (e) {
+        debugPrint('Speech permission request failed: $e');
+        // Continue anyway - not all devices need this
+      }
+
+      // Initialize TTS with timeout
+      if (mounted) setState(() => _connectingStatus = 'Initializing voice output...');
+      debugPrint('Initializing text-to-speech...');
+      bool ttsReady = false;
+      try {
+        ttsReady = await _voiceService.initTts().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            debugPrint('TTS initialization timed out');
+            return false;
+          },
+        );
+      } catch (e) {
+        debugPrint('TTS init error: $e');
+      }
+      debugPrint('TTS initialized: $ttsReady');
+
+      if (!ttsReady && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Voice output unavailable. AI responses will be shown as text.',
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+
+      // Initialize STT with timeout
+      if (mounted) setState(() => _connectingStatus = 'Initializing speech recognition...');
+      debugPrint('Initializing speech-to-text...');
+      bool sttReady = false;
+      try {
+        sttReady = await _voiceService.initStt().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            debugPrint('STT initialization timed out');
+            return false;
+          },
+        );
+      } catch (e) {
+        debugPrint('STT init error: $e');
+      }
+      debugPrint('STT initialized: $sttReady');
+
+      if (!sttReady && mounted) {
+        setState(() => _errorMessage = 'Speech recognition unavailable');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text(
-              'Microphone permission is required for voice calls',
+              'Speech recognition not available. Please install "Google Speech Services" from Play Store.',
             ),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 5),
             action: SnackBarAction(
-              label: 'Settings',
+              label: 'OK',
               textColor: Colors.white,
-              onPressed: () => openAppSettings(),
+              onPressed: () {},
             ),
           ),
         );
       }
-      return;
+
+      // Mark as connected regardless of TTS/STT status
+      if (mounted) setState(() => _isConnecting = false);
+      _startDurationTimer();
+
+      // AI greets the user - give extra time for TTS to be fully ready
+      await Future.delayed(const Duration(milliseconds: 1000));
+
+      final greeting = "Hi, I'm here to listen. How are you feeling today?";
+      if (mounted) setState(() => _aiResponse = greeting);
+      
+      if (ttsReady) {
+        await _voiceService.speak(greeting);
+      }
+    } catch (e) {
+      debugPrint('Voice call initialization error: $e');
+      if (mounted) {
+        setState(() {
+          _isConnecting = false;
+          _errorMessage = 'Failed to initialize: $e';
+        });
+      }
     }
-
-    // Request speech permission (needed on some devices)
-    debugPrint('Requesting speech permission...');
-    final speechStatus = await Permission.speech.request();
-    debugPrint('Speech permission status: $speechStatus');
-
-    // Initialize TTS FIRST and wait for it to be ready
-    debugPrint('Initializing text-to-speech...');
-    final ttsReady = await _voiceService.initTts();
-    debugPrint('TTS initialized: $ttsReady');
-
-    if (!ttsReady && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Voice output unavailable. AI responses will be shown as text.',
-          ),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
-        ),
-      );
-    }
-
-    // Initialize STT
-    debugPrint('Initializing speech-to-text...');
-    final sttReady = await _voiceService.initStt();
-    debugPrint('STT initialized: $sttReady');
-
-    if (!sttReady && mounted) {
-      setState(() => _errorMessage = 'Speech recognition unavailable');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Speech recognition not available. On emulator, install "Google Speech Services" from Play Store and download English language pack.',
-          ),
-          backgroundColor: Colors.orange,
-          duration: const Duration(seconds: 5),
-          action: SnackBarAction(
-            label: 'OK',
-            textColor: Colors.white,
-            onPressed: () {},
-          ),
-        ),
-      );
-    }
-
-    if (mounted) setState(() => _isConnecting = false);
-    _startDurationTimer();
-
-    // AI greets the user - give extra time for TTS to be fully ready
-    await Future.delayed(const Duration(milliseconds: 1000));
-
-    final greeting = "Hi, I'm here to listen. How are you feeling today?";
-    setState(() => _aiResponse = greeting);
-    await _voiceService.speak(greeting);
   }
 
   void _startDurationTimer() {
@@ -208,7 +259,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   }
 
   void _stopListening() async {
-    await _voiceService.stopListening();
+    await _voiceService.stopListeningAndNotify();
   }
 
   Future<void> _processUserSpeech() async {
@@ -424,7 +475,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   Widget _buildStatusText() {
     String status;
     if (_isConnecting) {
-      status = 'Connecting...';
+      status = _connectingStatus;
     } else if (_isProcessing) {
       status = 'Thinking...';
     } else if (_isSpeaking) {
