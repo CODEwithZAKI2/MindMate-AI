@@ -57,10 +57,61 @@ class VoiceCallService {
       debugPrint('Waiting for TTS engine to bind...');
       await Future.delayed(const Duration(milliseconds: 1500));
 
-      // Configure TTS settings
+      // Configure TTS settings for natural, human-like voice
+      // Volume at max for clarity
       await _tts!.setVolume(1.0);
-      await _tts!.setSpeechRate(0.45);
-      await _tts!.setPitch(1.0);
+      // Speech rate: 0.5 = natural conversational pace (like ChatGPT/Gemini)
+      // Not too fast, not too slow - human-like rhythm
+      await _tts!.setSpeechRate(0.5);
+      // Pitch: 1.05 = slightly warmer, more human tone
+      await _tts!.setPitch(1.05);
+      
+      // Try to get a more natural voice
+      if (Platform.isAndroid) {
+        try {
+          final voices = await _tts!.getVoices;
+          debugPrint('Available TTS voices: ${voices?.length ?? 0}');
+          
+          // Look for Google's neural/natural voices
+          if (voices != null && voices is List) {
+            // Prefer neural/natural voices for human-like quality
+            final voiceList = voices as List<dynamic>;
+            Map<String, dynamic>? bestVoice;
+            
+            for (final voice in voiceList) {
+              if (voice is Map) {
+                final name = voice['name']?.toString().toLowerCase() ?? '';
+                final locale = voice['locale']?.toString() ?? '';
+                
+                // Look for US English voices with natural/neural qualities
+                if (locale.contains('en') && locale.contains('US')) {
+                  // Prefer voices with these keywords (usually better quality)
+                  if (name.contains('neural') || name.contains('wavenet') || 
+                      name.contains('journey') || name.contains('studio') ||
+                      name.contains('polyglot') || name.contains('news')) {
+                    bestVoice = voice as Map<String, dynamic>;
+                    break;
+                  }
+                  // Fall back to any female voice (often sounds more natural)
+                  if (bestVoice == null && (name.contains('female') || name.contains('en-us-x-sfg'))) {
+                    bestVoice = voice as Map<String, dynamic>;
+                  }
+                }
+              }
+            }
+            
+            if (bestVoice != null) {
+              debugPrint('Setting TTS voice to: ${bestVoice['name']}');
+              await _tts!.setVoice({
+                'name': bestVoice['name'],
+                'locale': bestVoice['locale'],
+              });
+            }
+          }
+        } catch (e) {
+          debugPrint('Could not set custom voice: $e');
+        }
+      }
 
       // Try to set language with retries
       int retries = 3;
@@ -101,6 +152,11 @@ class VoiceCallService {
         debugPrint('TTS completed speaking');
         _isSpeaking = false;
         onSpeakingStateChanged?.call(false);
+        // Auto-restart listening after AI finishes speaking (intelligent turn-taking)
+        if (_continuousListening) {
+          debugPrint('AI finished speaking - auto-starting listener');
+          _scheduleRestartListening();
+        }
       });
 
       _tts!.setErrorHandler((msg) {
@@ -253,7 +309,7 @@ class VoiceCallService {
           // we'll let it timeout and auto-restart
         },
         listenFor: const Duration(minutes: 5), // Listen for up to 5 minutes
-        pauseFor: const Duration(seconds: 10), // Wait 10 seconds of silence before stopping
+        pauseFor: const Duration(seconds: 3), // 3 seconds of silence = user finished speaking (like ChatGPT)
         partialResults: true,
         localeId: _selectedLocale, // Use selected locale
         listenOptions: stt.SpeechListenOptions(

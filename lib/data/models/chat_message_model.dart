@@ -109,7 +109,11 @@ class ChatSessionModel {
     return ChatSessionModel(
       id: doc.id,
       userId: data['userId'] as String,
-      startedAt: (data['startedAt'] as Timestamp).toDate().toLocal(),
+      startedAt: data['startedAt'] != null
+          ? (data['startedAt'] as Timestamp).toDate().toLocal()
+          : (data['createdAt'] != null 
+              ? (data['createdAt'] as Timestamp).toDate().toLocal()
+              : DateTime.now()),
       endedAt:
           data['endedAt'] != null
               ? (data['endedAt'] as Timestamp).toDate().toLocal()

@@ -85,18 +85,23 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
     _voiceService.onListeningStateChanged = (listening) {
       if (mounted) setState(() => _isListening = listening);
-      // Process speech when we get final result and listening stops
+      // Intelligent turn-taking: process speech when user stops talking
+      // The voice service handles the pause detection (3 seconds of silence)
       if (!listening && _userTranscript.isNotEmpty && !_isProcessing && !_isSpeaking) {
+        debugPrint('User finished speaking - processing: "$_userTranscript"');
         _processUserSpeech();
       }
     };
 
     _voiceService.onSpeakingStateChanged = (speaking) {
       if (mounted) setState(() => _isSpeaking = speaking);
-      // When AI finishes speaking, resume continuous listening
-      if (!speaking && !_isProcessing && mounted) {
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted && _voiceService.isSttAvailable && !_voiceService.isListening) {
+      // Intelligent hands-free mode: auto-restart listening after AI speaks
+      // This is handled in the voice service TTS completion handler
+      // But we add a fallback here just in case
+      if (!speaking && !_isProcessing && mounted && _sttAvailable) {
+        Future.delayed(const Duration(milliseconds: 800), () {
+          if (mounted && !_voiceService.isListening && !_isSpeaking && !_isProcessing) {
+            debugPrint('Auto-activating mic after AI response');
             _startListening();
           }
         });
@@ -105,7 +110,10 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
     _voiceService.onError = (error) {
       debugPrint('Voice service error: $error');
-      if (mounted) setState(() => _errorMessage = error);
+      // Don't show transient errors to user, just log them
+      if (error.contains('permission') || error.contains('unavailable')) {
+        if (mounted) setState(() => _errorMessage = error);
+      }
     };
   }
 
@@ -248,8 +256,18 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       final greeting = "Hi, I'm here to listen. How are you feeling today?";
       if (mounted) setState(() => _aiResponse = greeting);
       
+      // Start continuous listening mode BEFORE greeting
+      // This enables intelligent hands-free conversation
+      if (sttReady) {
+        await _voiceService.startListening(continuous: true);
+      }
+      
       if (ttsReady) {
+        // Speak greeting - listener will auto-activate after TTS completes
         await _voiceService.speak(greeting);
+      } else if (sttReady) {
+        // TTS not ready but STT is - just start listening
+        debugPrint('TTS unavailable - starting listening directly');
       }
     } catch (e) {
       debugPrint('Voice call initialization error: $e');
@@ -282,7 +300,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
           .set({
         'userId': user.uid,
         'title': 'Voice Call',
-        'createdAt': FieldValue.serverTimestamp(),
+        'startedAt': FieldValue.serverTimestamp(),
         'lastMessageAt': FieldValue.serverTimestamp(),
         'messageCount': 0,
         'messages': [],
@@ -370,15 +388,27 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
         ),
       );
 
-      // Speak the response
+      // Speak the response - mic will auto-activate after AI finishes
+      // Clear transcript for next turn
+      setState(() => _userTranscript = '');
       await _voiceService.speak(aiText);
+      // After speaking, listener auto-restarts (handled in voice service)
     } catch (e) {
       debugPrint('Error processing speech: $e');
+      setState(() => _userTranscript = '');
       await _voiceService.speak(
         "I'm sorry, I couldn't process that. Could you try again?",
       );
     } finally {
       setState(() => _isProcessing = false);
+      // Ensure listening restarts after processing
+      if (_sttAvailable && mounted && !_voiceService.isListening) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted && !_isSpeaking && !_isProcessing) {
+            _startListening();
+          }
+        });
+      }
     }
   }
 
@@ -609,11 +639,13 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     } else if (_isProcessing) {
       status = 'Thinking...';
     } else if (_isSpeaking) {
-      status = 'AI is speaking';
+      status = 'Speaking...';
     } else if (_isListening) {
       status = 'Listening...';
+    } else if (_sttAvailable) {
+      status = 'Ready - just speak';
     } else {
-      status = 'Tap mic to speak';
+      status = 'Type your message';
     }
 
     return Text(
