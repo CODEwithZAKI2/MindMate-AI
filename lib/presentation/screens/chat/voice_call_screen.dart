@@ -69,18 +69,18 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
   void _setupVoiceService() {
     _voiceService.onSpeechResult = (text) {
-      setState(() => _userTranscript = text);
+      if (mounted) setState(() => _userTranscript = text);
     };
 
     _voiceService.onListeningStateChanged = (listening) {
-      setState(() => _isListening = listening);
+      if (mounted) setState(() => _isListening = listening);
       if (!listening && _userTranscript.isNotEmpty && !_isProcessing) {
         _processUserSpeech();
       }
     };
 
     _voiceService.onSpeakingStateChanged = (speaking) {
-      setState(() => _isSpeaking = speaking);
+      if (mounted) setState(() => _isSpeaking = speaking);
       if (!speaking && !_isProcessing) {
         // AI finished speaking, start listening again
         Future.delayed(const Duration(milliseconds: 500), () {
@@ -91,7 +91,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
     _voiceService.onError = (error) {
       debugPrint('Voice service error: $error');
-      setState(() => _errorMessage = error);
+      if (mounted) setState(() => _errorMessage = error);
     };
   }
 
@@ -131,6 +131,23 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     final speechStatus = await Permission.speech.request();
     debugPrint('Speech permission status: $speechStatus');
 
+    // Initialize TTS FIRST and wait for it to be ready
+    debugPrint('Initializing text-to-speech...');
+    final ttsReady = await _voiceService.initTts();
+    debugPrint('TTS initialized: $ttsReady');
+
+    if (!ttsReady && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Voice output unavailable. AI responses will be shown as text.',
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+
     // Initialize STT
     debugPrint('Initializing speech-to-text...');
     final sttReady = await _voiceService.initStt();
@@ -139,26 +156,35 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     if (!sttReady && mounted) {
       setState(() => _errorMessage = 'Speech recognition unavailable');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Speech recognition not available. Text-only mode.'),
+        SnackBar(
+          content: const Text(
+            'Speech recognition not available. On emulator, install "Google Speech Services" from Play Store and download English language pack.',
+          ),
           backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {},
+          ),
         ),
       );
     }
 
-    setState(() => _isConnecting = false);
+    if (mounted) setState(() => _isConnecting = false);
     _startDurationTimer();
 
-    // AI greets the user
-    await Future.delayed(const Duration(milliseconds: 500));
-    await _voiceService.speak(
-      "Hi, I'm here to listen. How are you feeling today?",
-    );
+    // AI greets the user - give extra time for TTS to be fully ready
+    await Future.delayed(const Duration(milliseconds: 1000));
+
+    final greeting = "Hi, I'm here to listen. How are you feeling today?";
+    setState(() => _aiResponse = greeting);
+    await _voiceService.speak(greeting);
   }
 
   void _startDurationTimer() {
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
       _seconds++;
       setState(() {
         final mins = (_seconds ~/ 60).toString().padLeft(2, '0');
