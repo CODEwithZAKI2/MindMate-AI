@@ -331,9 +331,8 @@ class VoiceCallService {
     _audioQueue.clear();
     _isPlayingStream = false;
     
-    // Split text into sentences
-    // Regex looks for [.!?] followed by space or end of string
-    final sentences = text.split(RegExp(r'(?<=[.!?])\s+'));
+    // Split text into sentences and merge short ones
+    final sentences = _smartSplitSentences(text);
     
     if (sentences.isEmpty) return;
 
@@ -347,7 +346,7 @@ class VoiceCallService {
       await _googleCloudTts.playAudioBytes(firstBytes);
       _isPlayingStream = true;
       
-      // Start fetching others in background
+      // Start fetching others in background with parallel prefetching
       _fetchAndQueueSentences(remainingSentences);
     } else {
       // Fallback if synthesis fails
@@ -355,19 +354,70 @@ class VoiceCallService {
     }
   }
 
-  Future<void> _fetchAndQueueSentences(List<String> sentences) async {
-    for (final sentence in sentences) {
-      if (!_isPlayingStream) break; // Stop if playback was cancelled
-      
-      final bytes = await _googleCloudTts.synthesizeToBytes(sentence);
-      if (bytes != null) {
-        _audioQueue.add(bytes);
-        
-        // If player is not playing (finished previous chunk), play next immediately
-        if (!_googleCloudTts.isSpeaking) {
-          _playNextInQueue();
+  /// Smartly split text into sentences, merging short ones to avoid audio gaps
+  List<String> _smartSplitSentences(String text) {
+    // 1. Initial split by punctuation
+    final rawSentences = text.split(RegExp(r'(?<=[.!?])\s+'));
+    final mergedSentences = <String>[];
+    String currentBuffer = '';
+
+    for (final sentence in rawSentences) {
+      if (sentence.trim().isEmpty) continue;
+
+      if (currentBuffer.isEmpty) {
+        currentBuffer = sentence;
+      } else {
+        // If buffer is short (< 30 chars) or current sentence is very short (< 10 chars), merge
+        if (currentBuffer.length < 30 || sentence.length < 10) {
+          currentBuffer += ' $sentence';
+        } else {
+          mergedSentences.add(currentBuffer);
+          currentBuffer = sentence;
         }
       }
+    }
+
+    if (currentBuffer.isNotEmpty) {
+      mergedSentences.add(currentBuffer);
+    }
+
+    return mergedSentences;
+  }
+
+  Future<void> _fetchAndQueueSentences(List<String> sentences) async {
+    // Use a sliding window for parallel fetching
+    // We fetch up to 2 sentences ahead to ensure the queue is never empty
+    int currentIndex = 0;
+    
+    while (currentIndex < sentences.length && _isPlayingStream) {
+      // Determine how many to fetch in this batch (max 2)
+      final batchSize = 2;
+      final endIndex = (currentIndex + batchSize < sentences.length) 
+          ? currentIndex + batchSize 
+          : sentences.length;
+          
+      final batch = sentences.sublist(currentIndex, endIndex);
+      
+      // Create futures for the batch
+      final futures = batch.map((s) => _googleCloudTts.synthesizeToBytes(s));
+      
+      // Wait for all in batch to complete (or process as they complete if we want to be fancier,
+      // but preserving order is easier this way)
+      final results = await Future.wait(futures);
+      
+      for (final bytes in results) {
+        if (!_isPlayingStream) break;
+        if (bytes != null) {
+          _audioQueue.add(bytes);
+          
+          // If player is not playing (finished previous chunk), play next immediately
+          if (!_googleCloudTts.isSpeaking) {
+            _playNextInQueue();
+          }
+        }
+      }
+      
+      currentIndex += batchSize;
     }
   }
 
