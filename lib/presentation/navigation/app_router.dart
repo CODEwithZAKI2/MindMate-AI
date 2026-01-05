@@ -178,11 +178,16 @@ final routerProvider = Provider<GoRouter>((ref) {
                 JournalEntryScreen(entryId: state.pathParameters['entryId']),
       ),
 
-      // Voice Call route
+      // Voice Call route - supports optional sessionId parameter
       GoRoute(
         path: Routes.voiceCall,
         name: 'voiceCall',
-        builder: (context, state) => const VoiceCallScreen(),
+        builder: (context, state) {
+          // Get sessionId from query parameters or extra data
+          final sessionId = state.uri.queryParameters['sessionId'] ?? 
+                           (state.extra as Map<String, dynamic>?)?['sessionId'] as String?;
+          return VoiceCallScreen(sessionId: sessionId);
+        },
       ),
     ],
 

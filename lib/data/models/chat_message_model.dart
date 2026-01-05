@@ -64,6 +64,7 @@ class ChatMessageModel {
 class ChatSessionModel {
   final String id;
   final String userId;
+  final String? title;
   final DateTime startedAt;
   final DateTime? endedAt;
   final DateTime? lastMessageAt;
@@ -76,6 +77,7 @@ class ChatSessionModel {
   ChatSessionModel({
     required this.id,
     required this.userId,
+    this.title,
     required this.startedAt,
     this.endedAt,
     this.lastMessageAt,
@@ -90,6 +92,7 @@ class ChatSessionModel {
     return ChatSessionModel(
       id: session.id,
       userId: session.userId,
+      title: session.title,
       startedAt: session.startedAt,
       endedAt: session.endedAt,
       lastMessageAt: session.lastMessageAt,
@@ -109,6 +112,7 @@ class ChatSessionModel {
     return ChatSessionModel(
       id: doc.id,
       userId: data['userId'] as String,
+      title: data['title'] as String?,
       startedAt: data['startedAt'] != null
           ? (data['startedAt'] as Timestamp).toDate().toLocal()
           : (data['createdAt'] != null 
@@ -138,6 +142,7 @@ class ChatSessionModel {
   Map<String, dynamic> toFirestore() {
     return {
       'userId': userId,
+      'title': title,
       'startedAt': Timestamp.fromDate(startedAt),
       'endedAt': endedAt != null ? Timestamp.fromDate(endedAt!) : null,
       'lastMessageAt':
@@ -154,6 +159,7 @@ class ChatSessionModel {
     return ChatSession(
       id: id,
       userId: userId,
+      title: title,
       startedAt: startedAt,
       endedAt: endedAt,
       lastMessageAt: lastMessageAt,

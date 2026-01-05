@@ -345,6 +345,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
+  /// Start voice call - passes current session ID if available
+  void _startVoiceCall() {
+    final sessionId = ref.read(currentSessionIdProvider);
+    // Only pass sessionId if it's a real session (not pending)
+    if (sessionId != null && sessionId != 'pending_new_session') {
+      context.push('/voice-call', extra: {'sessionId': sessionId});
+    } else {
+      // No existing session - voice call will create its own
+      context.push('/voice-call');
+    }
+  }
+
   /// Build the chat history drawer (UI only)
   Widget _buildHistoryDrawer(BuildContext context, ThemeData theme) {
     final userId = ref.watch(currentUserIdProvider);
@@ -549,7 +561,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
         ),
         title: Text(
-          session.summary ?? 'New Conversation',
+          session.title ?? session.summary ?? 'New Conversation',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.bodyMedium?.copyWith(
@@ -807,7 +819,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           actions: [
             IconButton(
               icon: const Icon(Icons.call_outlined),
-              onPressed: () => context.push('/voice-call'),
+              onPressed: _startVoiceCall,
               tooltip: 'Voice Call',
             ),
             IconButton(
@@ -929,7 +941,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 color: theme.colorScheme.primary,
                 size: 22,
               ),
-              onPressed: () => context.push('/voice-call'),
+              onPressed: _startVoiceCall,
               tooltip: 'Voice Call',
             ),
           ),

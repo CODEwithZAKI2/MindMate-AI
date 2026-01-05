@@ -60,6 +60,7 @@ class ChatMessage extends Equatable {
 class ChatSession extends Equatable {
   final String id;
   final String userId;
+  final String? title;
   final DateTime startedAt;
   final DateTime? endedAt;
   final DateTime? lastMessageAt;
@@ -72,6 +73,7 @@ class ChatSession extends Equatable {
   const ChatSession({
     required this.id,
     required this.userId,
+    this.title,
     required this.startedAt,
     this.endedAt,
     this.lastMessageAt,
@@ -92,6 +94,7 @@ class ChatSession extends Equatable {
   ChatSession copyWith({
     String? id,
     String? userId,
+    String? title,
     DateTime? startedAt,
     DateTime? endedAt,
     DateTime? lastMessageAt,
@@ -104,6 +107,7 @@ class ChatSession extends Equatable {
     return ChatSession(
       id: id ?? this.id,
       userId: userId ?? this.userId,
+      title: title ?? this.title,
       startedAt: startedAt ?? this.startedAt,
       endedAt: endedAt ?? this.endedAt,
       lastMessageAt: lastMessageAt ?? this.lastMessageAt,
@@ -119,6 +123,7 @@ class ChatSession extends Equatable {
   List<Object?> get props => [
     id,
     userId,
+    title,
     startedAt,
     endedAt,
     lastMessageAt,

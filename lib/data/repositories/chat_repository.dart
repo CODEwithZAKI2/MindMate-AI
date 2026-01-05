@@ -116,6 +116,13 @@ class ChatRepository {
         .update(model.toFirestore());
   }
 
+  // Update session title
+  Future<void> updateSessionTitle(String sessionId, String title) async {
+    await _firestore.collection('chat_sessions').doc(sessionId).update({
+      'title': title,
+    });
+  }
+
   // End chat session
   Future<void> endChatSession({
     required String sessionId,

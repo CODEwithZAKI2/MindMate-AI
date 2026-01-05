@@ -104,7 +104,8 @@ async function generateAIResponse(
   userName?: string,
   sessionSummaries?: string[],
   moodContext?: string,
-  userTimezone?: string
+  userTimezone?: string,
+  journalContext?: string
 ): Promise<string> {
   try {
     console.log("[generateAIResponse] Starting with message:", userMessage.substring(0, 50));
@@ -132,6 +133,11 @@ async function generateAIResponse(
     // Add mood context if available
     if (moodContext) {
       contextualPrompt += `\n\nRecent Mood Context (last 7 days):\n${moodContext}\nUse this to tailor guidance to the user's recent emotional state. Be gentle if mood is declining.`;
+    }
+
+    // Add journal context if available
+    if (journalContext) {
+      contextualPrompt += `\n\nUser's Journal Entries:\n${journalContext}\nUse this context to understand the user's ongoing thoughts, feelings, and experiences. Reference relevant journal entries naturally when appropriate, but don't quote them directly. This gives you insight into what they've been processing privately.`;
     }
 
     // Add timezone for crisis resource localization
@@ -241,10 +247,11 @@ export const chat = onCall(
 
     try {
       // Fetch user profile and session summaries for context
-      console.log("[chat] Fetching user profile, summaries, and mood context...");
+      console.log("[chat] Fetching user profile, summaries, mood, and journal context...");
       let userName: string | undefined;
       let sessionSummaries: string[] = [];
       let moodContext: string | undefined;
+      let journalContext: string | undefined;
 
       try {
         const userDoc = await admin.firestore()
@@ -280,7 +287,18 @@ export const chat = onCall(
         // Continue without mood context if fetch fails
       }
 
-      // Generate AI response with enhanced context including timezone
+      // Fetch recent journal entries for context
+      try {
+        journalContext = await fetchJournalContext(userId, 30, 10);
+        if (journalContext) {
+          console.log("[chat] Journal context prepared");
+        }
+      } catch (err) {
+        console.error("[chat] Error fetching journal context:", err);
+        // Continue without journal context if fetch fails
+      }
+
+      // Generate AI response with enhanced context including timezone and journal
       console.log("[chat] Calling generateAIResponse with timezone:", userTimezone || "NOT PROVIDED");
       const aiResponse = await generateAIResponse(
         message,
@@ -289,7 +307,8 @@ export const chat = onCall(
         userName,
         sessionSummaries,
         moodContext,
-        userTimezone
+        userTimezone,
+        journalContext
       );
       console.log("[chat] Got AI response:", aiResponse.substring(0, 50));
 
@@ -332,6 +351,14 @@ export const chat = onCall(
       const sessionDoc = await sessionRef.get();
       const sessionData = sessionDoc.data();
       const messageCount = sessionData?.messageCount || 0;
+
+      // Generate title after first exchange (2 messages: user + AI) if not already titled
+      if (messageCount === 2 && sessionData && !sessionData.title) {
+        console.log("[chat] Triggering title generation for session:", sessionId);
+        // Trigger title generation asynchronously (don't wait for it)
+        generateSessionTitle(sessionId, message, aiResponse, geminiApiKey.value())
+          .catch((error) => console.error("Title generation error:", error));
+      }
 
       // Generate summary after 10 messages if not already summarized
       if (messageCount >= 10 && sessionData && !sessionData.summary && sessionData.messages) {
@@ -409,6 +436,66 @@ Summary:`;
   } catch (error) {
     console.error("[generateSessionSummary] Error:", error);
     throw error;
+  }
+}
+
+/**
+ * Generate a short, descriptive title for a chat session
+ */
+async function generateSessionTitle(
+  sessionId: string,
+  userMessage: string,
+  aiResponse: string,
+  apiKey: string
+): Promise<void> {
+  try {
+    console.log("[generateSessionTitle] Starting for session:", sessionId);
+
+    // Use Gemini to generate a concise title
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      generationConfig: {
+        temperature: 0.5,
+        maxOutputTokens: 30,
+      },
+    });
+
+    const prompt = `Generate a short, descriptive title (3-6 words max) for this mental wellness conversation. The title should capture the main topic or emotion being discussed. Do not use quotes around the title.
+
+User said: "${userMessage}"
+AI responded about: "${aiResponse.substring(0, 200)}"
+
+Title:`;
+
+    const result = await model.generateContent(prompt);
+    let title = result.response.text().trim();
+    
+    // Clean up the title - remove quotes if present
+    title = title.replace(/^["']|["']$/g, '').trim();
+    
+    // Limit length and ensure it's not empty
+    if (title.length > 50) {
+      title = title.substring(0, 47) + '...';
+    }
+    if (!title) {
+      title = 'New Conversation';
+    }
+
+    console.log("[generateSessionTitle] Generated title:", title);
+
+    // Save title to Firestore
+    await admin.firestore()
+      .collection("chat_sessions")
+      .doc(sessionId)
+      .update({
+        title: title,
+      });
+
+    console.log("[generateSessionTitle] Title saved successfully");
+  } catch (error) {
+    console.error("[generateSessionTitle] Error:", error);
+    // Don't throw - title generation failure shouldn't break the chat
   }
 }
 
@@ -507,6 +594,59 @@ async function fetchRecentMoodContext(
     ].join("\n");
   } catch (error) {
     console.error("[fetchRecentMoodContext] Error:", error);
+    return undefined;
+  }
+}
+
+/**
+ * Fetch recent journal entries for AI context
+ */
+async function fetchJournalContext(
+  userId: string,
+  days: number = 30,
+  limit: number = 10
+): Promise<string | undefined> {
+  try {
+    const since = admin.firestore.Timestamp.fromDate(
+      new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+    );
+
+    const snapshot = await admin.firestore()
+      .collection("journal_entries")
+      .where("userId", "==", userId)
+      .where("deletedAt", "==", null)
+      .where("createdAt", ">=", since)
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .get();
+
+    if (snapshot.empty) return undefined;
+
+    const entries = snapshot.docs.map((doc) => {
+      const data = doc.data() as Record<string, any>;
+      const createdAt = (data.createdAt as admin.firestore.Timestamp).toDate();
+      const date = createdAt.toISOString().split("T")[0];
+      const content = (data.content as string) || "";
+      const mood = data.mood as number | undefined;
+      const tags = (data.tags as string[] | undefined) ?? [];
+      
+      // Truncate content for context (max 200 chars)
+      const truncatedContent = content.length > 200 
+        ? content.substring(0, 200) + "..."
+        : content;
+      
+      let entry = `- ${date}`;
+      if (mood) entry += ` (mood: ${mood}/5)`;
+      if (tags.length > 0) entry += ` [${tags.join(", ")}]`;
+      entry += `: "${truncatedContent}"`;
+      
+      return entry;
+    });
+
+    const header = `User's recent journal entries (last ${days} days, ${entries.length} entries):`;
+    return [header, ...entries].join("\n");
+  } catch (error) {
+    console.error("[fetchJournalContext] Error:", error);
     return undefined;
   }
 }

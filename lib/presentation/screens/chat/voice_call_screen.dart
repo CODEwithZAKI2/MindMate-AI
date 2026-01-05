@@ -70,6 +70,9 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
   // Voice session ID - persists throughout the call
   late String _voiceSessionId;
+  
+  // Whether we're continuing an existing chat session
+  bool _isExistingSession = false;
 
   // Audio level for visual feedback
   double _audioLevel = 0.0;
@@ -88,9 +91,14 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   void initState() {
     super.initState();
 
-    // Create a persistent session ID for this voice call
-    _voiceSessionId =
-        widget.sessionId ?? 'voice_${DateTime.now().millisecondsSinceEpoch}';
+    // Check if we're continuing an existing session or starting fresh
+    if (widget.sessionId != null) {
+      _voiceSessionId = widget.sessionId!;
+      _isExistingSession = true;
+    } else {
+      _voiceSessionId = 'voice_${DateTime.now().millisecondsSinceEpoch}';
+      _isExistingSession = false;
+    }
 
     _setupVoiceService();
     _initializeCall();
@@ -382,7 +390,8 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       // AI greets the user - give extra time for TTS to be fully ready
       await Future.delayed(const Duration(milliseconds: 500));
 
-      final greeting = "Hi, I'm here to listen. How are you feeling today?";
+      // Generate context-aware greeting
+      final greeting = await _generateGreeting();
       
       if (ttsReady) {
         // Store greeting as pending - will show when voice starts
@@ -413,8 +422,9 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   }
 
   /// Create voice session document in Firestore so Cloud Function can update it
+  /// If _isExistingSession is true, loads existing conversation history instead
   Future<void> _createVoiceSession() async {
-    debugPrint('[VoiceSession] _createVoiceSession called');
+    debugPrint('[VoiceSession] _createVoiceSession called (existing: $_isExistingSession)');
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       debugPrint('[VoiceSession] No user logged in!');
@@ -425,26 +435,96 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     debugPrint('[VoiceSession] Session ID: $_voiceSessionId');
 
     try {
-      debugPrint('[VoiceSession] Creating Firestore document...');
-      await FirebaseFirestore.instance
-          .collection('chat_sessions')
-          .doc(_voiceSessionId)
-          .set({
-            'userId': user.uid,
-            'title': 'Voice Call',
-            'startedAt': FieldValue.serverTimestamp(),
-            'lastMessageAt': FieldValue.serverTimestamp(),
-            'messageCount': 0,
-            'messages': [],
-            'isVoiceCall': true,
-          });
-      debugPrint(
-        '[VoiceSession] ✅ Voice session document created successfully!',
-      );
+      if (_isExistingSession) {
+        // Load existing session and conversation history
+        debugPrint('[VoiceSession] Loading existing session...');
+        final session = await _chatRepository.getChatSession(_voiceSessionId);
+        
+        // Load conversation history for context
+        for (final msg in session.messages) {
+          _conversationHistory.add(msg);
+        }
+        debugPrint('[VoiceSession] Loaded ${_conversationHistory.length} messages from history');
+      } else {
+        // Create new session
+        debugPrint('[VoiceSession] Creating Firestore document...');
+        await FirebaseFirestore.instance
+            .collection('chat_sessions')
+            .doc(_voiceSessionId)
+            .set({
+              'userId': user.uid,
+              'title': 'Voice Call',
+              'startedAt': FieldValue.serverTimestamp(),
+              'lastMessageAt': FieldValue.serverTimestamp(),
+              'messageCount': 0,
+              'messages': [],
+              'isVoiceCall': true,
+            });
+        debugPrint(
+          '[VoiceSession] ✅ Voice session document created successfully!',
+        );
+      }
     } catch (e) {
-      debugPrint('[VoiceSession] ❌ Error creating voice session: $e');
+      debugPrint('[VoiceSession] ❌ Error in voice session setup: $e');
       // Continue anyway - the cloud function might still work
       rethrow; // Rethrow so we can see the error in logs
+    }
+  }
+
+  /// Generate a context-aware greeting based on conversation history
+  Future<String> _generateGreeting() async {
+    // Default greeting for new conversations
+    const defaultGreeting = "Hi, I'm here to listen. How are you feeling today?";
+    
+    if (!_isExistingSession || _conversationHistory.isEmpty) {
+      return defaultGreeting;
+    }
+    
+    try {
+      // Get the last few messages for context
+      final recentMessages = _conversationHistory.length > 4 
+          ? _conversationHistory.sublist(_conversationHistory.length - 4)
+          : _conversationHistory;
+      
+      // Get the last user message
+      final lastUserMessage = recentMessages
+          .where((m) => m.role == 'user')
+          .lastOrNull;
+      
+      // Get the last AI message
+      final lastAiMessage = recentMessages
+          .where((m) => m.role == 'assistant')
+          .lastOrNull;
+      
+      if (lastUserMessage == null) {
+        return defaultGreeting;
+      }
+      
+      // Generate a contextual greeting using the cloud function
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return defaultGreeting;
+      
+      // Build context summary for greeting
+      final contextSummary = lastAiMessage != null 
+          ? "Last time we talked about: ${lastUserMessage.content.substring(0, lastUserMessage.content.length > 50 ? 50 : lastUserMessage.content.length)}..."
+          : null;
+      
+      // Use a simple contextual continuation greeting
+      final contextualGreetings = [
+        "Welcome back! I remember we were talking. How have things been since then?",
+        "Hi again! It's good to continue our conversation. How are you feeling now?",
+        "I'm glad you're back. Let's continue where we left off. How are you doing?",
+      ];
+      
+      // Pick a greeting based on conversation context
+      if (contextSummary != null) {
+        return "Welcome back! Last time you mentioned something. How have things been since we last talked?";
+      }
+      
+      return contextualGreetings[DateTime.now().second % contextualGreetings.length];
+    } catch (e) {
+      debugPrint('[VoiceCall] Error generating greeting: $e');
+      return defaultGreeting;
     }
   }
 

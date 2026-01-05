@@ -270,12 +270,28 @@ class _SessionCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
+              // Session title
+              if (session.title != null && session.title!.isNotEmpty) ...[
+                Text(
+                  session.title!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
               // Message preview
               Text(
                 truncatedPreview,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: session.title != null 
+                      ? theme.colorScheme.onSurface.withOpacity(0.7)
+                      : null,
+                ),
               ),
               if (session.summary != null && session.summary!.isNotEmpty) ...[
                 const SizedBox(height: 8),
