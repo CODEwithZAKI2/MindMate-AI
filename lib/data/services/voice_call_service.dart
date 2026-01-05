@@ -41,6 +41,7 @@ class VoiceCallService {
   onFinalResult; // Called when user finishes speaking (final result)
   Function(bool)? onListeningStateChanged;
   Function(bool)? onSpeakingStateChanged;
+  Function(double)? onSoundLevelChanged; // New callback for volume visualization
   Function(String)? onError;
   Function()? onTtsReady;
   Function(int usedChars, int limit)? onUsageWarning; // Google Cloud TTS usage warning
@@ -586,6 +587,19 @@ class VoiceCallService {
           // Don't specify onDevice - let the system use whatever speech service is available
           // This allows Xiaomi, Samsung, etc. to use their built-in engines
         ),
+        onSoundLevelChange: (level) {
+          // Normalize level (usually -10 to 10 or 0 to 10 depending on platform)
+          // We want a value between 0.0 and 1.0
+          // Android SpeechRecognizer usually returns RMS dB (-2 to 10)
+          // iOS returns 0 to 1?
+          
+          // Simple normalization for visualization
+          double normalized = 0.0;
+          if (level > 0) {
+             normalized = (level / 10.0).clamp(0.0, 1.0);
+          }
+          onSoundLevelChanged?.call(normalized);
+        },
       );
     } catch (e) {
       debugPrint('STT listen error: $e');

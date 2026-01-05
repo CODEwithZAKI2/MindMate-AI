@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +9,7 @@ import '../../../data/services/voice_call_service.dart';
 import '../../../data/repositories/chat_repository.dart';
 import '../../../domain/services/cloud_functions_service.dart';
 import '../../../domain/entities/chat_session.dart';
+import 'widgets/gemini_wave_visualizer.dart';
 
 /// Voice Call State Machine
 /// Controls the flow of conversation to prevent mic toggling
@@ -56,10 +56,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   VoiceCallState _callState = VoiceCallState.connecting;
   
   // Legacy state flags (kept for compatibility, derived from _callState)
-  bool get _isConnecting => _callState == VoiceCallState.connecting;
   bool get _isListening => _callState == VoiceCallState.userSpeaking || _callState == VoiceCallState.idle;
-  bool get _isSpeaking => _callState == VoiceCallState.aiSpeaking;
-  bool get _isProcessing => _callState == VoiceCallState.processingAI;
   
   bool _sttAvailable = false;
   bool _showTextInput = false;
@@ -69,21 +66,13 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   int _seconds = 0;
   Timer? _durationTimer;
   String _errorMessage = '';
-  String _connectingStatus = 'Initializing...';
   final TextEditingController _textController = TextEditingController();
 
   // Voice session ID - persists throughout the call
   late String _voiceSessionId;
 
-  // Animation controllers
-  late AnimationController _pulseController;
-  late AnimationController _waveController;
-  late AnimationController _breatheController;
-  late AnimationController _userWaveController;
-  
-  // Audio level simulation for visual feedback
+  // Audio level for visual feedback
   double _audioLevel = 0.0;
-  Timer? _audioLevelTimer;
   
   // Timer for delayed listening start - can be cancelled
   Timer? _delayedListeningTimer;
@@ -93,12 +82,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   _VoiceMessage? _pendingAiMessage;
 
   // Design colors
-  static const _primaryColor = Color(0xFF6366F1);
-  static const _secondaryColor = Color(0xFF8B5CF6);
-  static const _backgroundColor = Color(0xFF1A1A2E);
-  static const _accentColor = Color(0xFF00D9FF);
-  static const _userSpeakingColor = Color(0xFF10B981);
-  static const _aiSpeakingColor = Color(0xFF8B5CF6);
+  static const _backgroundColor = Color(0xFF0F111A); // Deep midnight blue
 
   @override
   void initState() {
@@ -107,30 +91,6 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     // Create a persistent session ID for this voice call
     _voiceSessionId =
         widget.sessionId ?? 'voice_${DateTime.now().millisecondsSinceEpoch}';
-
-    // Main pulse animation for orb
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
-
-    // Wave animation for listening state
-    _waveController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..repeat();
-    
-    // Breathing animation for AI speaking (slower, calmer)
-    _breatheController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2500),
-    )..repeat(reverse: true);
-    
-    // User speaking waveform animation
-    _userWaveController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    )..repeat(reverse: true);
 
     _setupVoiceService();
     _initializeCall();
@@ -150,7 +110,6 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
     // Handle state-specific actions
     switch (newState) {
       case VoiceCallState.idle:
-        _stopAudioLevelSimulation();
         // Unblock mic restarts when idle
         _voiceService.unblockMicRestarts();
         // Cancel any existing delayed listening timer
@@ -164,10 +123,9 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
         });
         break;
       case VoiceCallState.userSpeaking:
-        _startAudioLevelSimulation();
+        // Audio level is now handled by real callback
         break;
       case VoiceCallState.processingAI:
-        _stopAudioLevelSimulation();
         // CRITICAL: Cancel delayed listening timer to prevent mic from starting during AI processing
         _delayedListeningTimer?.cancel();
         _delayedListeningTimer = null;
@@ -177,7 +135,6 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
         _voiceService.stopListening();
         break;
       case VoiceCallState.aiSpeaking:
-        _stopAudioLevelSimulation();
         // CRITICAL: Cancel delayed listening timer to prevent mic from starting during AI speech
         _delayedListeningTimer?.cancel();
         _delayedListeningTimer = null;
@@ -186,32 +143,17 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
         break;
       case VoiceCallState.connecting:
       case VoiceCallState.error:
-        _stopAudioLevelSimulation();
         break;
     }
   }
   
-  /// Simulate audio level for visual feedback
-  void _startAudioLevelSimulation() {
-    _audioLevelTimer?.cancel();
-    _audioLevelTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (mounted && _callState == VoiceCallState.userSpeaking) {
-        setState(() {
-          // Simulate varying audio levels
-          _audioLevel = 0.3 + (math.Random().nextDouble() * 0.7);
-        });
-      }
-    });
-  }
-  
-  void _stopAudioLevelSimulation() {
-    _audioLevelTimer?.cancel();
-    if (mounted) {
-      setState(() => _audioLevel = 0.0);
-    }
-  }
-
   void _setupVoiceService() {
+    _voiceService.onSoundLevelChanged = (level) {
+      if (mounted && _callState == VoiceCallState.userSpeaking) {
+        setState(() => _audioLevel = level);
+      }
+    };
+
     _voiceService.onSpeechResult = (text) {
       if (mounted && text.isNotEmpty) {
         // User started speaking - transition to userSpeaking
@@ -301,8 +243,6 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
     try {
       // Request microphone permission at runtime with timeout
-      if (mounted)
-        setState(() => _connectingStatus = 'Requesting mic permission...');
       debugPrint('Requesting microphone permission...');
       final micStatus = await Permission.microphone.request().timeout(
         const Duration(seconds: 10),
@@ -335,7 +275,6 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       }
 
       // Request speech permission (needed on some devices) with timeout
-      if (mounted) setState(() => _connectingStatus = 'Setting up speech...');
       debugPrint('Requesting speech permission...');
       try {
         await Permission.speech.request().timeout(
@@ -348,8 +287,6 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       }
 
       // Initialize TTS with timeout
-      if (mounted)
-        setState(() => _connectingStatus = 'Initializing voice output...');
       debugPrint('Initializing text-to-speech...');
       bool ttsReady = false;
       try {
@@ -381,10 +318,6 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       }
 
       // Initialize STT with timeout
-      if (mounted)
-        setState(
-          () => _connectingStatus = 'Initializing speech recognition...',
-        );
       debugPrint('Initializing speech-to-text...');
       bool sttReady = false;
       try {
@@ -528,7 +461,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   }
 
   void _startListening() async {
-    if (_isSpeaking || _isProcessing) return;
+    if (_callState == VoiceCallState.aiSpeaking || _callState == VoiceCallState.processingAI) return;
     setState(() {
       _userTranscript = '';
       _errorMessage = '';
@@ -637,7 +570,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   /// Send text message (fallback when STT is unavailable)
   Future<void> _sendTextMessage() async {
     final text = _textController.text.trim();
-    if (text.isEmpty || _isProcessing) return;
+    if (text.isEmpty || _callState == VoiceCallState.processingAI) return;
 
     setState(() {
       _userTranscript = text;
@@ -670,12 +603,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   @override
   void dispose() {
     _durationTimer?.cancel();
-    _audioLevelTimer?.cancel();
     _delayedListeningTimer?.cancel();
-    _pulseController.dispose();
-    _waveController.dispose();
-    _breatheController.dispose();
-    _userWaveController.dispose();
     _textController.dispose();
     _scrollController.dispose();
     _voiceService.dispose();
@@ -686,572 +614,284 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _backgroundColor,
-      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            _buildHeader(),
-            // Conversation area takes most space
-            Expanded(child: _buildConversationArea()),
-            // Compact orb with status - tap to interrupt
-            _buildCompactOrbAndStatus(),
-            if (_errorMessage.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 8,
+            // Main Content
+            Column(
+              children: [
+                _buildHeader(),
+                
+                // Spacer to push visualizer down
+                const Spacer(),
+                
+                // The Wave Visualizer
+                GestureDetector(
+                  onTap: _interruptAI,
+                  child: SizedBox(
+                    height: 500, // Taller container for the waves
+                    width: double.infinity,
+                    child: GeminiWaveVisualizer(
+                      callState: _callState,
+                      audioLevel: _audioLevel,
+                    ),
+                  ),
                 ),
-                child: Text(
-                  _errorMessage,
-                  style: TextStyle(color: Colors.orange.shade300, fontSize: 12),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            // Current transcript (what user is saying now)
-            if (_userTranscript.isNotEmpty && !_isProcessing)
-              _buildCurrentTranscript(),
-            if (_showTextInput) _buildTextInput(),
-            const SizedBox(height: 16),
-            _buildControls(),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Conversation area showing all messages
-  Widget _buildConversationArea() {
-    if (_displayMessages.isEmpty && !_isProcessing) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.chat_bubble_outline_rounded,
-                color: Colors.white.withOpacity(0.3),
-                size: 48,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _sttAvailable
-                    ? 'Start speaking to begin the conversation'
-                    : 'Type a message to begin',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
-                  fontSize: 16,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: _displayMessages.length + (_isProcessing ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (index == _displayMessages.length && _isProcessing) {
-          // Show typing indicator
-          return _buildTypingIndicator();
-        }
-        return _buildMessageBubble(_displayMessages[index]);
-      },
-    );
-  }
-
-  /// Individual message bubble
-  Widget _buildMessageBubble(_VoiceMessage message) {
-    final isUser = message.isUser;
-    return Padding(
-      padding: EdgeInsets.only(
-        left: isUser ? 48 : 0,
-        right: isUser ? 0 : 48,
-        bottom: 12,
-      ),
-      child: Align(
-        alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color:
-                isUser
-                    ? _primaryColor.withOpacity(0.8)
-                    : Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20).copyWith(
-              bottomRight: isUser ? const Radius.circular(4) : null,
-              bottomLeft: !isUser ? const Radius.circular(4) : null,
+                
+                // Status Text & Transcript
+                _buildStatusArea(),
+                
+                const Spacer(),
+                
+                // Controls
+                _buildControls(),
+                const SizedBox(height: 40),
+              ],
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (!isUser)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    'MindMate AI',
-                    style: TextStyle(
-                      color: _accentColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              Text(
-                message.text,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.95),
-                  fontSize: 15,
-                  height: 1.4,
-                ),
+            
+            // Text Input Overlay (if needed)
+            if (_showTextInput)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: _buildTextInput(),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Typing indicator when AI is thinking
-  Widget _buildTypingIndicator() {
-    return Padding(
-      padding: const EdgeInsets.only(right: 48, bottom: 12),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(
-              20,
-            ).copyWith(bottomLeft: const Radius.circular(4)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'MindMate AI ',
-                style: TextStyle(
-                  color: _accentColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(
-                width: 24,
-                height: 16,
-                child: _ThinkingDots(color: Colors.white.withOpacity(0.6)),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Compact orb with tap-to-interrupt and state-specific animations
-  Widget _buildCompactOrbAndStatus() {
-    return GestureDetector(
-      onTap: _callState == VoiceCallState.aiSpeaking ? _interruptAI : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Animated orb based on state
-            _buildStateOrb(),
-            const SizedBox(height: 12),
-            // Status text
-            _buildStateStatusText(),
           ],
         ),
       ),
     );
   }
-  
-  /// State-specific animated orb
-  Widget _buildStateOrb() {
-    switch (_callState) {
-      case VoiceCallState.userSpeaking:
-        return _buildUserSpeakingOrb();
-      case VoiceCallState.aiSpeaking:
-        return _buildAISpeakingOrb();
-      case VoiceCallState.processingAI:
-        return _buildProcessingOrb();
-      case VoiceCallState.idle:
-        return _buildIdleOrb();
-      case VoiceCallState.connecting:
-        return _buildConnectingOrb();
-      case VoiceCallState.error:
-        return _buildErrorOrb();
-    }
-  }
-  
-  /// User speaking - green pulsing orb with waveform
-  Widget _buildUserSpeakingOrb() {
-    return AnimatedBuilder(
-      animation: _userWaveController,
-      builder: (context, child) {
-        return Container(
-          width: 80,
-          height: 80,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Outer wave rings
-              ...List.generate(3, (index) {
-                final delay = index * 0.2;
-                final scale = 1.0 + (_audioLevel * 0.5 * (index + 1) * 0.3);
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  width: 60 * scale,
-                  height: 60 * scale,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: _userSpeakingColor.withOpacity(0.3 - (index * 0.1)),
-                      width: 2,
-                    ),
-                  ),
-                );
-              }),
-              // Core orb
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: 50 + (_audioLevel * 10),
-                height: 50 + (_audioLevel * 10),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      _userSpeakingColor,
-                      _userSpeakingColor.withOpacity(0.7),
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _userSpeakingColor.withOpacity(0.5),
-                      blurRadius: 20 + (_audioLevel * 15),
-                      spreadRadius: 5 + (_audioLevel * 5),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.mic_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-  
-  /// AI speaking - purple breathing orb
-  Widget _buildAISpeakingOrb() {
-    return AnimatedBuilder(
-      animation: _breatheController,
-      builder: (context, child) {
-        final breathe = 1.0 + (_breatheController.value * 0.15);
-        return Container(
-          width: 80,
-          height: 80,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Breathing glow
-              Transform.scale(
-                scale: breathe,
-                child: Container(
-                  width: 70,
-                  height: 70,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: _aiSpeakingColor.withOpacity(0.4),
-                        blurRadius: 30,
-                        spreadRadius: 10,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // Core orb
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      _aiSpeakingColor,
-                      _aiSpeakingColor.withOpacity(0.7),
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _aiSpeakingColor.withOpacity(0.5),
-                      blurRadius: 20,
-                      spreadRadius: 5,
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.record_voice_over_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-  
-  /// Processing - spinning indicator
-  Widget _buildProcessingOrb() {
-    return SizedBox(
-      width: 80,
-      height: 80,
-      child: Stack(
-        alignment: Alignment.center,
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Spinning ring
-          SizedBox(
-            width: 60,
-            height: 60,
-            child: CircularProgressIndicator(
-              strokeWidth: 3,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                _primaryColor.withOpacity(0.7),
+          GestureDetector(
+            onTap: _endCall,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: Colors.white,
+                size: 24,
               ),
             ),
           ),
-          // Core orb
           Container(
-            width: 45,
-            height: 45,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _primaryColor.withOpacity(0.3),
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
             ),
-            child: Icon(
-              Icons.psychology_rounded,
-              color: Colors.white.withOpacity(0.8),
-              size: 22,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  /// Idle - subtle pulsing ready state
-  Widget _buildIdleOrb() {
-    return AnimatedBuilder(
-      animation: _pulseController,
-      builder: (context, child) {
-        final pulse = 1.0 + (_pulseController.value * 0.08);
-        return Transform.scale(
-          scale: pulse,
-          child: Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  _accentColor.withOpacity(0.8),
-                  _primaryColor.withOpacity(0.5),
-                ],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: _accentColor.withOpacity(0.3),
-                  blurRadius: 15,
-                  spreadRadius: 3,
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF00D9FF),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _callDuration,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
-            child: Icon(
-              Icons.mic_none_rounded,
-              color: Colors.white.withOpacity(0.9),
-              size: 22,
-            ),
           ),
-        );
-      },
-    );
-  }
-  
-  /// Connecting orb
-  Widget _buildConnectingOrb() {
-    return SizedBox(
-      width: 50,
-      height: 50,
-      child: CircularProgressIndicator(
-        strokeWidth: 2,
-        valueColor: AlwaysStoppedAnimation<Color>(_accentColor),
+          // Placeholder for balance
+          const SizedBox(width: 48),
+        ],
       ),
     );
   }
-  
-  /// Error orb
-  Widget _buildErrorOrb() {
-    return Container(
-      width: 50,
-      height: 50,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.red.withOpacity(0.3),
-      ),
-      child: const Icon(
-        Icons.error_outline_rounded,
-        color: Colors.red,
-        size: 24,
-      ),
-    );
-  }
-  
-  /// State-specific status text
-  Widget _buildStateStatusText() {
-    String statusText;
-    String? subText;
-    Color statusColor;
+
+  Widget _buildStatusArea() {
+    String statusText = '';
+    Color statusColor = Colors.white.withValues(alpha: 0.7);
     
     switch (_callState) {
       case VoiceCallState.connecting:
-        statusText = _connectingStatus;
-        statusColor = Colors.white.withOpacity(0.7);
+        statusText = 'Connecting...';
         break;
       case VoiceCallState.idle:
         statusText = 'Listening...';
-        subText = 'Start speaking whenever you\'re ready';
-        statusColor = _accentColor;
         break;
       case VoiceCallState.userSpeaking:
-        statusText = 'Hearing you...';
-        statusColor = _userSpeakingColor;
+        statusText = 'Listening...';
+        statusColor = const Color(0xFF64B5F6); // Light Blue
         break;
       case VoiceCallState.processingAI:
         statusText = 'Thinking...';
-        statusColor = _primaryColor;
+        statusColor = const Color(0xFFBA68C8); // Purple
         break;
       case VoiceCallState.aiSpeaking:
-        statusText = 'MindMate is speaking';
-        subText = 'Tap to interrupt';
-        statusColor = _aiSpeakingColor;
+        statusText = 'MindMate is speaking...';
+        statusColor = const Color(0xFF4DD0E1); // Cyan
         break;
       case VoiceCallState.error:
-        statusText = 'Error';
-        subText = _errorMessage;
-        statusColor = Colors.red;
+        statusText = _errorMessage.isNotEmpty ? _errorMessage : 'Error';
+        statusColor = Colors.redAccent;
         break;
     }
-    
-    return Column(
-      children: [
-        Text(
-          statusText,
-          style: TextStyle(
-            color: statusColor,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        if (subText != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              subText,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontSize: 12,
-              ),
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        children: [
+          // Status Label
+          Text(
+            statusText,
+            style: TextStyle(
+              color: statusColor,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.5,
             ),
           ),
-      ],
+          
+          const SizedBox(height: 16),
+          
+          // Transcript / Response
+          if (_userTranscript.isNotEmpty || _aiResponse.isNotEmpty)
+            Container(
+              constraints: const BoxConstraints(maxHeight: 100),
+              child: SingleChildScrollView(
+                child: Text(
+                  _callState == VoiceCallState.aiSpeaking 
+                      ? _aiResponse 
+                      : _userTranscript,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 20,
+                    height: 1.4,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
-  String _buildStatusString() {
-    switch (_callState) {
-      case VoiceCallState.connecting:
-        return _connectingStatus;
-      case VoiceCallState.idle:
-        return 'Ready';
-      case VoiceCallState.userSpeaking:
-        return 'Listening...';
-      case VoiceCallState.processingAI:
-        return 'Thinking...';
-      case VoiceCallState.aiSpeaking:
-        return 'Speaking...';
-      case VoiceCallState.error:
-        return 'Error';
-    }
-  }
-
-  /// Shows what the user is currently saying
-  Widget _buildCurrentTranscript() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: _primaryColor.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _primaryColor.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.mic_rounded, color: _accentColor, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              _userTranscript,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.9),
-                fontSize: 14,
-                fontStyle: FontStyle.italic,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+  Widget _buildControls() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Keyboard Toggle
+        _buildControlButton(
+          icon: _showTextInput ? Icons.keyboard_hide_rounded : Icons.keyboard_rounded,
+          onTap: () => setState(() => _showTextInput = !_showTextInput),
+          color: Colors.white.withValues(alpha: 0.1),
+        ),
+        
+        const SizedBox(width: 24),
+        
+        // End Call (Large)
+        GestureDetector(
+          onTap: _endCall,
+          child: Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF5252),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFF5252).withValues(alpha: 0.4),
+                  blurRadius: 20,
+                  spreadRadius: 4,
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.call_end_rounded,
+              color: Colors.white,
+              size: 32,
             ),
           ),
-        ],
+        ),
+        
+        const SizedBox(width: 24),
+        
+        // Mic Toggle
+        _buildControlButton(
+          icon: _isListening ? Icons.mic_rounded : Icons.mic_off_rounded,
+          onTap: _toggleMute,
+          color: _isListening 
+              ? Colors.white.withValues(alpha: 0.1) 
+              : Colors.white.withValues(alpha: 0.3),
+          isActive: _isListening,
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildControlButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required Color color,
+    bool isActive = true,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: 24,
+        ),
       ),
     );
   }
 
   Widget _buildTextInput() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _backgroundColor,
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+      ),
       child: Row(
         children: [
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: TextField(
                 controller: _textController,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: 'Type your message...',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                  hintText: 'Type a message...',
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
+                    horizontal: 20,
                     vertical: 12,
                   ),
                 ),
@@ -1265,231 +905,15 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
             child: Container(
               width: 48,
               height: 48,
-              decoration: BoxDecoration(
-                color: _primaryColor,
+              decoration: const BoxDecoration(
+                color: Color(0xFF64B5F6), // Light Blue accent
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.send_rounded, color: Colors.white, size: 22),
+              child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Row(
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'MindMate AI',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _isConnecting ? 'Connecting...' : _callDuration,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          IconButton(
-            onPressed: () => context.pop(),
-            icon: Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: Colors.white.withOpacity(0.7),
-              size: 32,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCenterOrb() {
-    return AnimatedBuilder(
-      animation: Listenable.merge([_pulseController, _waveController]),
-      builder: (context, child) {
-        final scale = 1.0 + (_pulseController.value * 0.15);
-        final shouldAnimate = _isSpeaking || _isListening;
-
-        return Container(
-          width: 180,
-          height: 180,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: (shouldAnimate ? _accentColor : _primaryColor)
-                    .withOpacity(0.3),
-                blurRadius: shouldAnimate ? 60 : 40,
-                spreadRadius: shouldAnimate ? 20 : 10,
-              ),
-            ],
-          ),
-          child: Transform.scale(
-            scale: shouldAnimate ? scale : 1.0,
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    (shouldAnimate ? _accentColor : _primaryColor).withOpacity(
-                      0.8,
-                    ),
-                    _secondaryColor.withOpacity(0.4),
-                    Colors.transparent,
-                  ],
-                  stops: const [0.3, 0.7, 1.0],
-                ),
-              ),
-              child: Center(
-                child: Icon(
-                  _isSpeaking
-                      ? Icons.record_voice_over_rounded
-                      : _isListening
-                      ? Icons.mic_rounded
-                      : Icons.headset_mic_rounded,
-                  color: Colors.white,
-                  size: 48,
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildStatusText() {
-    String status;
-    if (_isConnecting) {
-      status = _connectingStatus;
-    } else if (_isProcessing) {
-      status = 'Thinking...';
-    } else if (_isSpeaking) {
-      status = 'Speaking...';
-    } else if (_isListening) {
-      status = 'Listening...';
-    } else if (_sttAvailable) {
-      status = 'Ready - just speak';
-    } else {
-      status = 'Type your message';
-    }
-
-    return Text(
-      status,
-      style: TextStyle(
-        color: Colors.white.withOpacity(0.7),
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
-      ),
-    );
-  }
-
-  Widget _buildTranscriptArea() {
-    final displayText =
-        _aiResponse.isNotEmpty
-            ? _aiResponse
-            : _userTranscript.isNotEmpty
-            ? '"$_userTranscript"'
-            : '';
-
-    return Container(
-      height: 120,
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: SingleChildScrollView(
-        child: Text(
-          displayText,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.8),
-            fontSize: 18,
-            fontStyle:
-                _aiResponse.isEmpty ? FontStyle.italic : FontStyle.normal,
-            height: 1.5,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildControls() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Mute/Unmute button or Keyboard button if STT unavailable
-        GestureDetector(
-          onTap: _toggleMute,
-          child: Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color:
-                  _showTextInput
-                      ? _primaryColor
-                      : Colors.white.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              !_sttAvailable
-                  ? (_showTextInput
-                      ? Icons.keyboard_hide_rounded
-                      : Icons.keyboard_rounded)
-                  : (_isListening ? Icons.mic_rounded : Icons.mic_off_rounded),
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-        ),
-        const SizedBox(width: 40),
-        // End call button
-        GestureDetector(
-          onTap: _endCall,
-          child: Container(
-            width: 72,
-            height: 72,
-            decoration: const BoxDecoration(
-              color: Colors.red,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.call_end_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-        ),
-        const SizedBox(width: 40),
-        // Speaker toggle (placeholder)
-        GestureDetector(
-          onTap: () {},
-          child: Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.volume_up_rounded,
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1507,58 +931,3 @@ class _VoiceMessage {
   });
 }
 
-/// Animated thinking dots
-class _ThinkingDots extends StatefulWidget {
-  final Color color;
-
-  const _ThinkingDots({required this.color});
-
-  @override
-  State<_ThinkingDots> createState() => _ThinkingDotsState();
-}
-
-class _ThinkingDotsState extends State<_ThinkingDots>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(3, (index) {
-            final delay = index * 0.2;
-            final value = ((_controller.value + delay) % 1.0);
-            final opacity = value < 0.5 ? value * 2 : (1 - value) * 2;
-            return Container(
-              width: 6,
-              height: 6,
-              margin: const EdgeInsets.symmetric(horizontal: 1),
-              decoration: BoxDecoration(
-                color: widget.color.withOpacity(opacity.clamp(0.3, 1.0)),
-                shape: BoxShape.circle,
-              ),
-            );
-          }),
-        );
-      },
-    );
-  }
-}
