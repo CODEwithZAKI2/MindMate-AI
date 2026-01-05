@@ -641,27 +641,32 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
                   // AI Identity Section (compact)
                   _buildAIIdentity(),
                   
-                  const Spacer(flex: 1),
-                  
-                  // The Wave Visualizer (centered and prominent)
-                  GestureDetector(
-                    onTap: _interruptAI,
-                    child: SizedBox(
-                      height: 280,
-                      width: double.infinity,
-                      child: GeminiWaveVisualizer(
-                        callState: _callState,
-                        audioLevel: _audioLevel,
+                  // The Wave Visualizer - fills available space with rounded bottom
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _interruptAI,
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 20),
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.only(
+                            bottomLeft: Radius.circular(40),
+                            bottomRight: Radius.circular(40),
+                          ),
+                          child: GeminiWaveVisualizer(
+                            callState: _callState,
+                            audioLevel: _audioLevel,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                   
-                  const Spacer(flex: 1),
+                  const SizedBox(height: 24),
                   
                   // Status Text & Transcript
                   _buildStatusArea(),
                   
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
                   
                   // Controls
                   _buildControls(),

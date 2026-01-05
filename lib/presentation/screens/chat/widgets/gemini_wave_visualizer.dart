@@ -74,40 +74,78 @@ class GeminiWavePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // We draw 3 overlapping waves to create the "Aurora" effect
+    // Draw a subtle gradient background at the bottom for depth
+    final bgGradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        Colors.transparent,
+        const Color(0xFF1A1F3C).withValues(alpha: 0.3),
+        const Color(0xFF1A237E).withValues(alpha: 0.4),
+      ],
+      stops: const [0.0, 0.6, 1.0],
+    );
     
-    // Layer 1: Deep Blue (Background) - Slow moving
+    final bgPaint = Paint()
+      ..shader = bgGradient.createShader(
+        Rect.fromLTWH(0, size.height * 0.4, size.width, size.height * 0.6),
+      );
+    canvas.drawRect(
+      Rect.fromLTWH(0, size.height * 0.4, size.width, size.height * 0.6),
+      bgPaint,
+    );
+    
+    // We draw 3 overlapping waves to create the "Aurora" effect
+    // Waves are positioned at the bottom of the canvas and rise upward
+    
+    // Layer 1: Deep Blue (Background) - Slow moving, tallest wave
     _drawWave(
       canvas,
       size,
-      color: const Color(0xFF1A237E).withOpacity(0.6),
-      amplitude: 30 + (volume * 20),
+      color: const Color(0xFF1A237E).withValues(alpha: 0.7),
+      amplitude: 35 + (volume * 25),
       frequency: 1.5,
       phase: animationValue * 2 * math.pi,
-      yOffset: 120, // Raised up
+      baseOffset: 0,
+      waveHeight: 160 + (volume * 50),
     );
 
-    // Layer 2: Cyan/Purple (Mid) - Medium speed
+    // Layer 2: Purple/Indigo (Mid) - Medium speed
     _drawWave(
       canvas,
       size,
-      color: const Color(0xFF6C63FF).withOpacity(0.5),
-      amplitude: 40 + (volume * 40),
-      frequency: 2.2,
-      phase: (animationValue * 2 * math.pi) + 2,
-      yOffset: 90, // Raised up
+      color: const Color(0xFF5C6BC0).withValues(alpha: 0.6),
+      amplitude: 45 + (volume * 45),
+      frequency: 2.0,
+      phase: (animationValue * 2 * math.pi) + 1.5,
+      baseOffset: 0,
+      waveHeight: 120 + (volume * 70),
     );
 
-    // Layer 3: Bright Cyan/White (Foreground) - Fast & Reactive
+    // Layer 3: Bright Cyan (Foreground) - Fast & Reactive
     _drawWave(
       canvas,
       size,
-      color: const Color(0xFF4FACFE).withOpacity(0.4),
-      amplitude: 20 + (volume * 80), // Highly reactive to volume
-      frequency: 3.0,
-      phase: (animationValue * 2 * math.pi) + 4,
-      yOffset: 60, // Raised up
-      isGlow: true, // Add glow to this layer
+      color: const Color(0xFF4FC3F7).withValues(alpha: 0.5),
+      amplitude: 25 + (volume * 80),
+      frequency: 2.8,
+      phase: (animationValue * 2 * math.pi) + 3,
+      baseOffset: 0,
+      waveHeight: 80 + (volume * 90),
+      isGlow: true,
+    );
+    
+    // Add a bright highlight layer for extra pop
+    _drawWave(
+      canvas,
+      size,
+      color: const Color(0xFFE0F7FA).withValues(alpha: 0.25),
+      amplitude: 15 + (volume * 50),
+      frequency: 3.5,
+      phase: (animationValue * 2 * math.pi) + 5,
+      baseOffset: 0,
+      waveHeight: 50 + (volume * 60),
+      isGlow: true,
     );
   }
 
@@ -118,35 +156,36 @@ class GeminiWavePainter extends CustomPainter {
     required double amplitude,
     required double frequency,
     required double phase,
-    required double yOffset,
+    required double baseOffset,
+    required double waveHeight,
     bool isGlow = false,
   }) {
     final path = Path();
-    final baseHeight = size.height;
+    final baseY = size.height - baseOffset; // Bottom of canvas
 
-    path.moveTo(0, baseHeight);
+    path.moveTo(0, size.height); // Start at bottom-left corner
     
-    // Draw sine wave
+    // Draw sine wave from left to right
     for (double x = 0; x <= size.width; x++) {
-      // Calculate y using sine wave formula
-      // We add some noise/complexity by combining two sine waves
       final normalizedX = x / size.width;
+      // Combine two sine waves for organic movement
       final sine1 = math.sin((normalizedX * frequency * 2 * math.pi) + phase);
       final sine2 = math.sin((normalizedX * frequency * 1.5 * 2 * math.pi) + (phase * 1.5));
       
-      final y = baseHeight - yOffset - (sine1 + sine2 * 0.5) * amplitude;
-      path.lineTo(x, y);
+      // Wave rises from the bottom
+      final waveY = baseY - waveHeight - (sine1 + sine2 * 0.5) * amplitude;
+      path.lineTo(x, waveY);
     }
 
-    path.lineTo(size.width, baseHeight);
-    path.close();
+    path.lineTo(size.width, size.height); // Go to bottom-right corner
+    path.close(); // Close the path back to start
 
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
 
     if (isGlow) {
-      paint.maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
+      paint.maskFilter = const MaskFilter.blur(BlurStyle.normal, 25);
     }
 
     canvas.drawPath(path, paint);
