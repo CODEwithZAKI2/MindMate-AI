@@ -158,31 +158,17 @@ class _UnifiedChatScreenState extends ConsumerState<UnifiedChatScreen>
     final currentSessionId = ref.read(currentSessionIdProvider);
     if (currentSessionId == null) {
       await _startNewSession(userId);
+    } else if (currentSessionId == 'pending_new_session') {
+      // Session will be created on first message
+      setState(() => _localMessages = []);
     }
   }
 
   Future<void> _startNewSession(String userId) async {
-    final newSession = ChatSession(
-      id: '',
-      userId: userId,
-      startedAt: DateTime.now(),
-      messageCount: 0,
-      messages: const [],
-    );
-
-    try {
-      final sessionId = await ref
-          .read(chatNotifierProvider.notifier)
-          .createChatSession(newSession);
-      ref.read(currentSessionIdProvider.notifier).state = sessionId;
-      setState(() => _localMessages = []);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error creating session: $e')),
-        );
-      }
-    }
+    // Don't create session immediately - set pending state
+    // Session will be created when first message is sent
+    ref.read(currentSessionIdProvider.notifier).state = 'pending_new_session';
+    setState(() => _localMessages = []);
   }
 
   void _startNewChat() {
@@ -203,13 +189,37 @@ class _UnifiedChatScreenState extends ConsumerState<UnifiedChatScreen>
     if (text.isEmpty) return;
 
     final userId = ref.read(currentUserIdProvider);
-    final sessionId = ref.read(currentSessionIdProvider);
+    var sessionId = ref.read(currentSessionIdProvider);
 
-    if (userId == null || sessionId == null) {
+    if (userId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Session not ready. Please try again.')),
+        const SnackBar(content: Text('Please sign in to send messages.')),
       );
       return;
+    }
+
+    // If session is pending, create it now on first message
+    if (sessionId == null || sessionId == 'pending_new_session') {
+      try {
+        final newSession = ChatSession(
+          id: '',
+          userId: userId,
+          startedAt: DateTime.now(),
+          messageCount: 0,
+          messages: const [],
+        );
+        sessionId = await ref
+            .read(chatNotifierProvider.notifier)
+            .createChatSession(newSession);
+        ref.read(currentSessionIdProvider.notifier).state = sessionId;
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error creating chat session: $e')),
+          );
+        }
+        return;
+      }
     }
 
     _messageController.clear();

@@ -42,6 +42,7 @@ class ChatRepository {
   }
 
   // Get user chat sessions stream (real-time)
+  // Only returns sessions with at least 1 message
   Stream<List<ChatSession>> getChatSessionsStream(String userId) {
     return _firestore
         .collection('chat_sessions')
@@ -50,6 +51,7 @@ class ChatRepository {
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => ChatSessionModel.fromFirestore(doc).toEntity())
+            .where((session) => session.messageCount > 0) // Filter out empty sessions
             .toList());
   }
 
