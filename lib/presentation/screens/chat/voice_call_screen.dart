@@ -623,7 +623,7 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
       setState(() => _userTranscript = '');
       // DON'T transition here - speak() calls blockMicRestarts() and 
       // onSpeakingStateChanged will handle the transition when audio starts
-      await _voiceService.speak(aiText);
+      await _voiceService.speakStream(aiText);
     } catch (e) {
       debugPrint('[VoiceCall] Error processing speech: $e');
       setState(() => _userTranscript = '');

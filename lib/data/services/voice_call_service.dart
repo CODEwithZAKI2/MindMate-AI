@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:collection';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -103,6 +105,9 @@ class VoiceCallService {
 
     _googleCloudTts.onComplete = () {
       debugPrint('[VoiceCallService] Google Cloud TTS completed');
+      if (_isPlayingStream && _audioQueue.isNotEmpty) {
+        _playNextInQueue();
+      }
     };
 
     _googleCloudTts.onUsageWarning = (used, limit) {
@@ -309,6 +314,72 @@ class VoiceCallService {
   /// Get list of available voices (for Google Cloud TTS)
   /// Returns a map of voice name to description
   Map<String, String> get availableVoices => GoogleCloudTtsService.availableVoices;
+
+  // Queue for streaming audio
+  final Queue<Uint8List> _audioQueue = Queue<Uint8List>();
+  bool _isPlayingStream = false;
+  
+  /// Speak text using streaming (for low latency)
+  Future<void> speakStream(String text) async {
+    // If using local TTS, just speak normally (it's fast enough)
+    if (_activeTtsEngine == TtsEngine.flutterTts) {
+      await speak(text);
+      return;
+    }
+
+    // If using Cloud TTS, use streaming strategy
+    _audioQueue.clear();
+    _isPlayingStream = false;
+    
+    // Split text into sentences
+    // Regex looks for [.!?] followed by space or end of string
+    final sentences = text.split(RegExp(r'(?<=[.!?])\s+'));
+    
+    if (sentences.isEmpty) return;
+
+    // Process first sentence immediately
+    final firstSentence = sentences.first;
+    final remainingSentences = sentences.skip(1).toList();
+
+    // Fetch and play first sentence
+    final firstBytes = await _googleCloudTts.synthesizeToBytes(firstSentence);
+    if (firstBytes != null) {
+      await _googleCloudTts.playAudioBytes(firstBytes);
+      _isPlayingStream = true;
+      
+      // Start fetching others in background
+      _fetchAndQueueSentences(remainingSentences);
+    } else {
+      // Fallback if synthesis fails
+      await speak(text);
+    }
+  }
+
+  Future<void> _fetchAndQueueSentences(List<String> sentences) async {
+    for (final sentence in sentences) {
+      if (!_isPlayingStream) break; // Stop if playback was cancelled
+      
+      final bytes = await _googleCloudTts.synthesizeToBytes(sentence);
+      if (bytes != null) {
+        _audioQueue.add(bytes);
+        
+        // If player is not playing (finished previous chunk), play next immediately
+        if (!_googleCloudTts.isSpeaking) {
+          _playNextInQueue();
+        }
+      }
+    }
+  }
+
+  void _playNextInQueue() async {
+    if (_audioQueue.isEmpty) {
+      _isPlayingStream = false;
+      return;
+    }
+
+    final bytes = _audioQueue.removeFirst();
+    await _googleCloudTts.playAudioBytes(bytes);
+  }
 
   /// Initialize speech-to-text
   Future<bool> initStt() async {

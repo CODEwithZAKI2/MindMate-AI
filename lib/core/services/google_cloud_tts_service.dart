@@ -198,11 +198,11 @@ class GoogleCloudTtsService {
     return '<speak><prosody rate="medium" pitch="medium">$escaped</prosody></speak>';
   }
 
-  /// Synthesize speech from text
-  Future<void> speak(String text) async {
+  /// Synthesize speech from text to audio bytes (no playback)
+  Future<Uint8List?> synthesizeToBytes(String text) async {
     if (text.isEmpty) {
       debugPrint('[GoogleCloudTTS] Empty text, skipping');
-      return;
+      return null;
     }
 
     if (!_isInitialized || _apiKey == null) {
@@ -210,7 +210,7 @@ class GoogleCloudTtsService {
       final success = await initialize();
       if (!success) {
         onError?.call('Voice service not available');
-        return;
+        return null;
       }
     }
 
@@ -220,12 +220,12 @@ class GoogleCloudTtsService {
       onError?.call(
         'Monthly TTS character limit reached. Please try again next month or upgrade your plan.',
       );
-      return;
+      return null;
     }
 
     try {
       debugPrint(
-        '[GoogleCloudTTS] Speaking: "${text.substring(0, text.length > 50 ? 50 : text.length)}..."',
+        '[GoogleCloudTTS] Synthesizing: "${text.substring(0, text.length > 50 ? 50 : text.length)}..."',
       );
 
       // Check if voice is Journey type (has different limitations)
@@ -277,23 +277,33 @@ class GoogleCloudTtsService {
         // Update usage tracking (don't await - do in background)
         _updateUsage(text.length);
 
-        // Play audio immediately
-        await _playAudio(audioBytes);
+        return audioBytes;
       } else {
         debugPrint('[GoogleCloudTTS] API error: ${response.statusCode}');
         debugPrint('[GoogleCloudTTS] Response: ${response.body}');
         _handleApiError(response.statusCode, response.body);
+        return null;
       }
     } catch (e) {
-      debugPrint('[GoogleCloudTTS] Speak error: $e');
+      debugPrint('[GoogleCloudTTS] Synthesize error: $e');
+      onError?.call('Failed to generate speech: $e');
+      return null;
+    }
+  }
+
+  /// Synthesize speech from text
+  Future<void> speak(String text) async {
+    final bytes = await synthesizeToBytes(text);
+    if (bytes != null) {
+      await playAudioBytes(bytes);
+    } else {
       _isSpeaking = false;
       onSpeakingStateChanged?.call(false);
-      onError?.call('Failed to generate speech: $e');
     }
   }
 
   /// Play audio from bytes - optimized for speed
-  Future<void> _playAudio(Uint8List audioBytes) async {
+  Future<void> playAudioBytes(Uint8List audioBytes) async {
     try {
       _isSpeaking = true;
       onSpeakingStateChanged?.call(true);
@@ -343,7 +353,7 @@ class GoogleCloudTtsService {
       debugPrint('[GoogleCloudTTS] Would exceed free tier limit');
       return false;
     }
-
+  
     // Warn if approaching limit
     if (projectedUsage > _warningThreshold) {
       final percentUsed = (projectedUsage / _freeCharacterLimit * 100).round();
