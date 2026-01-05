@@ -614,91 +614,200 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _backgroundColor,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // Main Content
-            Column(
-              children: [
-                _buildHeader(),
-                
-                // Spacer to push visualizer down
-                const Spacer(),
-                
-                // The Wave Visualizer
-                GestureDetector(
-                  onTap: _interruptAI,
-                  child: SizedBox(
-                    height: 500, // Taller container for the waves
-                    width: double.infinity,
-                    child: GeminiWaveVisualizer(
-                      callState: _callState,
-                      audioLevel: _audioLevel,
+      body: Container(
+        decoration: const BoxDecoration(
+          // Subtle gradient background
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF0F111A),
+              Color(0xFF151827),
+              Color(0xFF0F111A),
+            ],
+            stops: [0.0, 0.5, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              // Main Content
+              Column(
+                children: [
+                  _buildHeader(),
+                  
+                  const SizedBox(height: 12),
+                  
+                  // AI Identity Section (compact)
+                  _buildAIIdentity(),
+                  
+                  const Spacer(flex: 1),
+                  
+                  // The Wave Visualizer (centered and prominent)
+                  GestureDetector(
+                    onTap: _interruptAI,
+                    child: SizedBox(
+                      height: 280,
+                      width: double.infinity,
+                      child: GeminiWaveVisualizer(
+                        callState: _callState,
+                        audioLevel: _audioLevel,
+                      ),
                     ),
                   ),
-                ),
-                
-                // Status Text & Transcript
-                _buildStatusArea(),
-                
-                const Spacer(),
-                
-                // Controls
-                _buildControls(),
-                const SizedBox(height: 40),
-              ],
-            ),
-            
-            // Text Input Overlay (if needed)
-            if (_showTextInput)
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: _buildTextInput(),
+                  
+                  const Spacer(flex: 1),
+                  
+                  // Status Text & Transcript
+                  _buildStatusArea(),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Controls
+                  _buildControls(),
+                  
+                  const SizedBox(height: 32),
+                ],
               ),
-          ],
+              
+              // Text Input Overlay (if needed)
+              if (_showTextInput)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: _buildTextInput(),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  Widget _buildAIIdentity() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // AI Avatar with glow
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF6366F1),
+                Color(0xFF8B5CF6),
+                Color(0xFF06B6D4),
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                blurRadius: 24,
+                spreadRadius: 4,
+              ),
+            ],
+          ),
+          child: const Center(
+            child: Icon(
+              Icons.auto_awesome,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 12),
+        
+        // AI Name
+        const Text(
+          'MindMate',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+          ),
+        ),
+        
+        const SizedBox(height: 2),
+        
+        // Subtitle
+        Text(
+          'Your AI Companion',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.5),
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // Back Button
           GestureDetector(
             onTap: _endCall,
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
-                Icons.arrow_back_rounded,
+                Icons.arrow_back_ios_new_rounded,
                 color: Colors.white,
-                size: 24,
+                size: 20,
               ),
             ),
           ),
+          
+          // Duration Pill
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
+              color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.1),
+                width: 1,
+              ),
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF00D9FF),
-                    shape: BoxShape.circle,
-                  ),
+                // Pulsing dot
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.5, end: 1.0),
+                  duration: const Duration(milliseconds: 1000),
+                  builder: (context, value, child) {
+                    return Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: value),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF10B981).withValues(alpha: value * 0.5),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  onEnd: () {},
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -706,14 +815,32 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
               ],
             ),
           ),
-          // Placeholder for balance
-          const SizedBox(width: 48),
+          
+          // Settings/Options Button (placeholder for balance)
+          GestureDetector(
+            onTap: () {
+              // Could add options menu here
+            },
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.more_vert_rounded,
+                color: Colors.white.withValues(alpha: 0.7),
+                size: 20,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -721,54 +848,86 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
 
   Widget _buildStatusArea() {
     String statusText = '';
-    Color statusColor = Colors.white.withValues(alpha: 0.7);
+    Color statusColor = Colors.white.withValues(alpha: 0.6);
+    IconData statusIcon = Icons.sync_rounded;
     
     switch (_callState) {
       case VoiceCallState.connecting:
         statusText = 'Connecting...';
+        statusIcon = Icons.sync_rounded;
         break;
       case VoiceCallState.idle:
         statusText = 'Listening...';
+        statusIcon = Icons.mic_rounded;
+        statusColor = const Color(0xFF10B981);
         break;
       case VoiceCallState.userSpeaking:
         statusText = 'Listening...';
-        statusColor = const Color(0xFF64B5F6); // Light Blue
+        statusIcon = Icons.graphic_eq_rounded;
+        statusColor = const Color(0xFF64B5F6);
         break;
       case VoiceCallState.processingAI:
         statusText = 'Thinking...';
-        statusColor = const Color(0xFFBA68C8); // Purple
+        statusIcon = Icons.psychology_rounded;
+        statusColor = const Color(0xFFBA68C8);
         break;
       case VoiceCallState.aiSpeaking:
-        statusText = 'MindMate is speaking...';
-        statusColor = const Color(0xFF4DD0E1); // Cyan
+        statusText = 'Speaking...';
+        statusIcon = Icons.record_voice_over_rounded;
+        statusColor = const Color(0xFF06B6D4);
         break;
       case VoiceCallState.error:
         statusText = _errorMessage.isNotEmpty ? _errorMessage : 'Error';
+        statusIcon = Icons.error_outline_rounded;
+        statusIcon = Icons.error_outline_rounded;
         statusColor = Colors.redAccent;
         break;
     }
 
-    return Padding(
+    return Container(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Status Label
-          Text(
-            statusText,
-            style: TextStyle(
-              color: statusColor,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.5,
+          // Status Chip
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: statusColor.withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  statusIcon,
+                  color: statusColor,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  statusText,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
             ),
           ),
           
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           
-          // Transcript / Response
+          // Transcript / Response Text
           if (_userTranscript.isNotEmpty || _aiResponse.isNotEmpty)
             Container(
-              constraints: const BoxConstraints(maxHeight: 100),
+              constraints: const BoxConstraints(maxHeight: 80),
               child: SingleChildScrollView(
                 child: Text(
                   _callState == VoiceCallState.aiSpeaking 
@@ -776,12 +935,23 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
                       : _userTranscript,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 20,
-                    height: 1.4,
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 18,
+                    height: 1.5,
                     fontWeight: FontWeight.w400,
                   ),
                 ),
+              ),
+            )
+          else
+            Text(
+              _callState == VoiceCallState.idle 
+                  ? 'Say something to start...'
+                  : '',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.4),
+                fontSize: 16,
+                fontStyle: FontStyle.italic,
               ),
             ),
         ],
@@ -790,77 +960,84 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
   }
 
   Widget _buildControls() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Keyboard Toggle
-        _buildControlButton(
-          icon: _showTextInput ? Icons.keyboard_hide_rounded : Icons.keyboard_rounded,
-          onTap: () => setState(() => _showTextInput = !_showTextInput),
-          color: Colors.white.withValues(alpha: 0.1),
-        ),
-        
-        const SizedBox(width: 24),
-        
-        // End Call (Large)
-        GestureDetector(
-          onTap: _endCall,
-          child: Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFF5252),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFFF5252).withValues(alpha: 0.4),
-                  blurRadius: 20,
-                  spreadRadius: 4,
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.call_end_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 40),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          // Keyboard Toggle
+          _buildControlButton(
+            icon: _showTextInput ? Icons.keyboard_hide_rounded : Icons.keyboard_rounded,
+            onTap: () => setState(() => _showTextInput = !_showTextInput),
+            backgroundColor: Colors.white.withValues(alpha: 0.08),
+            iconColor: Colors.white.withValues(alpha: 0.8),
+            size: 56,
           ),
-        ),
-        
-        const SizedBox(width: 24),
-        
-        // Mic Toggle
-        _buildControlButton(
-          icon: _isListening ? Icons.mic_rounded : Icons.mic_off_rounded,
-          onTap: _toggleMute,
-          color: _isListening 
-              ? Colors.white.withValues(alpha: 0.1) 
-              : Colors.white.withValues(alpha: 0.3),
-          isActive: _isListening,
-        ),
-      ],
+          
+          // End Call (Large)
+          _buildControlButton(
+            icon: Icons.call_end_rounded,
+            onTap: _endCall,
+            backgroundColor: const Color(0xFFEF4444),
+            iconColor: Colors.white,
+            size: 72,
+            hasShadow: true,
+            shadowColor: const Color(0xFFEF4444),
+          ),
+          
+          // Mic Toggle
+          _buildControlButton(
+            icon: _isListening ? Icons.mic_rounded : Icons.mic_off_rounded,
+            onTap: _toggleMute,
+            backgroundColor: _isListening 
+                ? const Color(0xFF10B981).withValues(alpha: 0.2)
+                : Colors.white.withValues(alpha: 0.15),
+            iconColor: _isListening 
+                ? const Color(0xFF10B981)
+                : Colors.white.withValues(alpha: 0.6),
+            size: 56,
+            borderColor: _isListening ? const Color(0xFF10B981).withValues(alpha: 0.4) : null,
+          ),
+        ],
+      ),
     );
   }
   
   Widget _buildControlButton({
     required IconData icon,
     required VoidCallback onTap,
-    required Color color,
-    bool isActive = true,
+    required Color backgroundColor,
+    required Color iconColor,
+    required double size,
+    bool hasShadow = false,
+    Color? shadowColor,
+    Color? borderColor,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 56,
-        height: 56,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
-          color: color,
+          color: backgroundColor,
           shape: BoxShape.circle,
+          border: borderColor != null 
+              ? Border.all(color: borderColor, width: 1.5)
+              : null,
+          boxShadow: hasShadow && shadowColor != null
+              ? [
+                  BoxShadow(
+                    color: shadowColor.withValues(alpha: 0.4),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : null,
         ),
         child: Icon(
           icon,
-          color: Colors.white,
-          size: 24,
+          color: iconColor,
+          size: size * 0.4,
         ),
       ),
     );
@@ -874,25 +1051,36 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
         border: Border(
           top: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
+                color: Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  width: 1,
+                ),
               ),
               child: TextField(
                 controller: _textController,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: 'Type a message...',
-                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 20,
-                    vertical: 12,
+                    vertical: 14,
                   ),
                 ),
                 onSubmitted: (_) => _sendTextMessage(),
@@ -905,9 +1093,23 @@ class _VoiceCallScreenState extends ConsumerState<VoiceCallScreen>
             child: Container(
               width: 48,
               height: 48,
-              decoration: const BoxDecoration(
-                color: Color(0xFF64B5F6), // Light Blue accent
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF6366F1),
+                    Color(0xFF8B5CF6),
+                  ],
+                ),
                 shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                    blurRadius: 12,
+                    spreadRadius: 1,
+                  ),
+                ],
               ),
               child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
             ),
