@@ -1,7 +1,34 @@
 # MindMate AI - Development Tasks
 
-> **Last Updated:** December 28, 2025  
+> **Last Updated:** January 7, 2026  
 > **MVP Target:** February 11, 2026
+
+---
+
+## 🚀 RECENT ACHIEVEMENTS (January 2026)
+
+### AI Voice Call System ✨ NEW
+- [x] Real-time voice conversation with AI therapist
+- [x] Google Cloud Text-to-Speech integration (Neural2 voices)
+- [x] Animated wave visualizer during calls
+- [x] Sentence-based parallel streaming (30s → 3s latency optimization)
+- [x] End-call transcript saving to chat history
+- [x] Full-duplex conversation support
+- [x] Voice call button in chat screen
+- [x] Session continuity - continue existing chat in voice mode
+- [x] Context-aware voice greetings based on conversation history
+
+### Auto-Generated Chat Titles ✨ NEW
+- [x] AI-generated session titles using Gemini API
+- [x] Titles generated after first user message
+- [x] Displayed in chat header and history screen
+- [x] Cloud Function `generateSessionTitle()` for title extraction
+
+### Journal Context Integration ✨ NEW
+- [x] Full journal access for AI responses
+- [x] AI references past journal entries in conversations
+- [x] `fetchJournalContext()` cloud function
+- [x] Deeper personalization with journal-aware AI responses
 
 ---
 

@@ -2,31 +2,75 @@
 
 > Your compassionate mental wellness companion powered by AI
 
-**MindMate AI** is a Flutter-based mobile application designed to provide accessible, private mental wellness support through empathetic AI conversations, mood tracking, and personalized wellness exercises.
+**MindMate AI** is a cross-platform Flutter mobile application providing accessible, private mental wellness support through empathetic AI conversations, real-time voice calls, mood tracking, AI-powered journaling, and personalized wellness tools.
 
 [![Flutter Version](https://img.shields.io/badge/Flutter-3.29.3-02569B?logo=flutter)](https://flutter.dev)
 [![Dart Version](https://img.shields.io/badge/Dart-3.7.2-0175C2?logo=dart)](https://dart.dev)
+[![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Auth%20%7C%20Functions-FFCA28?logo=firebase)](https://firebase.google.com)
+[![Gemini AI](https://img.shields.io/badge/AI-Gemini%202.0%20Flash-4285F4?logo=google)](https://ai.google.dev)
 [![License](https://img.shields.io/badge/License-Proprietary-red)]()
 
 ---
 
 ## 🌟 Features
 
-### Core Features (MVP)
-- 🔐 **Secure Authentication** - Email, Google, and Apple Sign-In
-- 💬 **AI Wellness Chat** - Empathetic conversations with context memory
-- 📊 **Mood Tracking** - Daily check-ins with 5-point scale
-- 📈 **Mood History** - Visual trends and patterns
-- 🚨 **Safety System** - Proactive crisis detection with resource display
-- ⚙️ **User Settings** - Profile management and preferences
+### 🎤 AI Voice Call System ✨ NEW
+- **Real-time Voice Conversations** - Talk naturally with your AI wellness companion
+- **Google Cloud TTS Integration** - Neural2 voices for natural-sounding responses
+- **Animated Wave Visualizer** - Beautiful visual feedback during calls
+- **Performance Optimized** - Sentence-based parallel streaming (latency: 30s → 3s)
+- **Transcript Saving** - Full conversation saved to chat history after call ends
+- **Session Continuity** - Continue any chat conversation in voice mode seamlessly
+- **Context-Aware Greetings** - AI greets you based on your recent conversations
 
-### Coming Soon
-- 🎯 Premium subscription tier
-- 📉 Advanced mood analytics
-- 🧘 Guided breathing exercises
-- ✍️ AI-powered journaling
-- 🔔 Smart reminders
-- 🌍 Multi-language support
+### 💬 AI Wellness Chat
+- **Empathetic Conversations** - Powered by Gemini 2.0 Flash with therapy-style prompting
+- **Auto-Generated Titles** - AI automatically names conversations for easy reference
+- **Context Memory** - Last 10 messages + session summaries for continuity
+- **User Profile Awareness** - AI uses your name and preferences
+- **Mood Context Integration** - AI knows your recent mood patterns (last 7 days)
+- **Journal Awareness** - AI references your journal entries for deeper personalization
+- **Message Management** - Copy, timestamps, scroll-to-bottom, typing indicators
+- **WhatsApp-Style Offline Queue** - Messages queue offline with pending icons, auto-resend on reconnect
+
+### 📝 AI-Powered Journaling
+- **Guided Prompts** - AI-generated writing prompts based on your mood
+- **Free Writing Mode** - Open-ended journaling space
+- **Entry Analysis** - AI-powered insights on journal entries
+- **Journal Context for AI** - AI references your journal entries in conversations
+- **Date-Based Organization** - Easy navigation through past entries
+- **Full-Text Search** - Find entries by content (coming soon)
+
+### 📊 Mood Tracking & Analytics
+- **Daily Check-ins** - 5-point scale with emotion tags and notes
+- **7-Day History View** - Visual mood trends
+- **Monthly Calendar View** - Color-coded mood patterns
+- **Streak Tracking** - Gamified consistency encouragement
+- **Mood Analytics** - Charts showing mood distribution over time
+- **AI Integration** - Mood data automatically shared with AI for context
+
+### 🚨 Crisis Detection & Safety System
+- **Real-time Keyword Detection** - Backend-powered crisis recognition
+- **Immediate Resources** - Crisis hotlines displayed when needed
+- **Regional Localization** - 8 countries with localized resources (US, CA, GB, AU, NZ, IE, IN, ZA)
+- **Timezone Detection** - Automatic localization based on user timezone
+- **Safety Banners** - "Help is Available" banner on crisis responses
+- **Event Logging** - Crisis events logged for safety review
+- **AI Blocking** - AI blocked during active crisis, resources shown instead
+
+### 🔐 Secure Authentication
+- **Email/Password** - Traditional sign-up/login
+- **Google Sign-In** - One-tap authentication
+- **Apple Sign-In** - iOS native authentication (coming soon)
+- **Onboarding Flow** - 4-page guided introduction
+- **Age Verification** - 18+ age gate with disclaimer
+- **Session Management** - Secure token handling with flutter_secure_storage
+
+### ⚙️ User Settings & Preferences
+- **Profile Management** - Name, avatar, preferences
+- **Notification Settings** - Customizable reminders
+- **Data Export** - Download your data
+- **Account Deletion** - GDPR-compliant data removal
 
 ---
 
@@ -36,20 +80,57 @@ MindMate AI follows **Clean Architecture** principles with a clear separation of
 
 ```
 lib/
-├── core/           # Shared utilities, constants, theme
-├── data/           # Data sources, models, repositories
+├── core/           # Shared utilities, constants, theme, error handling
+├── data/           # Data sources, models, repositories (Firestore)
 ├── domain/         # Business logic, entities, use cases
-├── presentation/   # UI, screens, widgets, state management
+├── presentation/   # UI, screens, widgets, Riverpod providers
 └── l10n/           # Internationalization
 ```
 
+### State Management
+- **Riverpod 2.x** - Compile-safe dependency injection and state management
+- **Provider Pattern** - Repository providers, state notifiers, async providers
+- **Reactive UI** - Automatic rebuilds on state changes
+
+### Backend Architecture
+- **Firebase Cloud Functions** (Node.js 20, TypeScript)
+  - `generateAIResponse()` - Main AI chat endpoint
+  - `generateSessionTitle()` - Auto-generates conversation titles
+  - `fetchJournalContext()` - Retrieves journal entries for AI context
+  - `generateJournalPrompt()` - Creates personalized journal prompts
+  - `analyzeJournalEntry()` - AI-powered journal insights
+  
 ### Tech Stack
-- **Frontend**: Flutter 3.29+ with Material 3
-- **State Management**: Riverpod 2.x
-- **Backend**: Firebase (Auth, Firestore, Cloud Functions)
-- **AI**: Google Gemini API
-- **Navigation**: GoRouter
-- **Typography**: Google Fonts (Inter)
+| Category | Technology |
+|----------|------------|
+| **Frontend** | Flutter 3.29.3 + Dart 3.7.2 |
+| **UI Framework** | Material Design 3 |
+| **State Management** | Riverpod 2.x |
+| **Backend** | Firebase (Auth, Firestore, Functions, Storage) |
+| **AI Model** | Google Gemini 2.0 Flash API |
+| **Voice Synthesis** | Google Cloud Text-to-Speech (Neural2) |
+| **Navigation** | GoRouter with auth guards |
+| **Typography** | Google Fonts (Inter) |
+| **Security** | flutter_secure_storage, Firebase Security Rules |
+
+---
+
+## ⚡ Performance Optimizations
+
+### Voice Call Latency Optimization
+```
+Before: User speaks → Full response generated → Full audio synthesized → Playback
+Result: ~30 second delay
+
+After: User speaks → Stream sentences → Parallel TTS synthesis → Immediate playback
+Result: ~3 second delay (10x improvement)
+```
+
+### Chat System Optimizations
+- **Efficient Pagination** - Load messages on demand
+- **Offline-First** - Messages queued locally, synced when online
+- **Optimistic Updates** - Instant UI feedback before server confirmation
+- **Message Deduplication** - Prevent duplicate sends on retry
 
 ---
 
@@ -60,12 +141,13 @@ lib/
 - Dart 3.7.2 or higher
 - Android Studio / VS Code with Flutter extension
 - Firebase project (see setup instructions)
+- Google Cloud project with TTS API enabled (for voice calls)
 
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/mindmate_ai.git
+   git clone https://github.com/CODEwithZAKI2/MindMate-AI.git
    cd mindmate_ai
    ```
 
@@ -82,8 +164,18 @@ lib/
      - `GoogleService-Info.plist` → `ios/Runner/`
    - Enable Authentication (Email/Password, Google)
    - Create Firestore database
+   - Deploy Cloud Functions: `cd functions && npm run deploy`
 
-4. **Run the app**
+4. **Set up Gemini API** (Required)
+   - Get API key from [Google AI Studio](https://aistudio.google.com)
+   - Add to Firebase Functions config
+
+5. **Set up Google Cloud TTS** (For Voice Calls)
+   - Enable Text-to-Speech API in Google Cloud Console
+   - Download service account JSON
+   - See `docs/GOOGLE_CLOUD_TTS_SETUP.md` for details
+
+6. **Run the app**
    ```bash
    flutter run
    ```
@@ -170,20 +262,30 @@ This is currently a private project. Contribution guidelines will be added when 
 
 ## 📋 Project Status
 
-**Current Phase**: Phase 1 - Foundation (Week 1-2)  
-**Status**: ✅ Foundation Complete - Ready for Firebase Setup
+**Current Phase**: Phase 3 - Advanced Features  
+**Status**: ✅ Core Features Complete - Voice Calls, Journaling, Analytics
 
-### Progress
-- ✅ Project structure and dependencies
-- ✅ Core utilities and theme system
-- ✅ Navigation setup
-- ✅ Error handling
-- 🔄 Firebase integration (in progress)
-- ⏳ Authentication flows (next)
-- ⏳ Chat system (upcoming)
-- ⏳ Mood tracking (upcoming)
+### Development Progress
+| Feature | Status |
+|---------|--------|
+| Authentication System | ✅ Complete |
+| AI Chat with Memory | ✅ Complete |
+| Voice Call System | ✅ Complete |
+| Mood Tracking & Analytics | ✅ Complete |
+| AI Journaling | ✅ Complete |
+| Crisis Detection & Safety | ✅ Complete |
+| Auto-Generated Titles | ✅ Complete |
+| Session Continuity | ✅ Complete |
+| Offline Message Queue | ✅ Complete |
+| Premium Features | 🔄 In Progress |
 
-See [tasks.md](tasks.md) for detailed task tracking.
+### Coming Soon
+- 🎯 Premium subscription tier
+- 🧘 Guided breathing exercises
+- 🔔 Smart wellness reminders
+- 🌍 Multi-language support
+
+See [tasks.md](docs/planning/tasks.md) for detailed task tracking.
 
 ---
 
@@ -196,27 +298,22 @@ This project is not open source and may not be used, copied, or distributed with
 
 ## 🙋 Support
 
-For support, email support@mindmate-ai.com or visit our [Help Center](https://mindmate-ai.com/help).
+For support, email engomar@163.com.
 
-### Crisis Resources
-If you're in crisis, please reach out:
-- **988 Suicide & Crisis Lifeline**: Call or text 988
-- **Crisis Text Line**: Text HOME to 741741
-- **Emergency**: Call 911
 
----
 
 ## 👥 Team
 
-**Project Lead**: [Your Name]  
-**Development**: [Team Members]  
-**Design**: [Designer Names]
+**Project Lead**: Omar 马文彬  
+**Development**: Omar 马文彬  
+**Design**: Omar 马文彬
 
 ---
 
 ## 🏆 Acknowledgments
 
 - Google Gemini API for AI capabilities
+- Google Cloud Text-to-Speech for voice synthesis
 - Firebase for backend infrastructure
 - Flutter community for amazing packages
 - Mental health professionals for guidance
@@ -227,4 +324,4 @@ If you're in crisis, please reach out:
 
 ---
 
-*Last Updated: December 17, 2025*
+*Last Updated: January 7, 2026*
