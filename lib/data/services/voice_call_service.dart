@@ -576,8 +576,8 @@ class VoiceCallService {
         },
         listenFor: const Duration(minutes: 5), // Listen for up to 5 minutes
         pauseFor: const Duration(
-          seconds: 5,
-        ), // 5 seconds of silence = user finished speaking (gives more time to complete thoughts)
+          seconds: 3,
+        ), // 3 seconds of silence = user finished speaking (reduced from 5s for better responsiveness)
         partialResults: true,
         localeId: _selectedLocale, // Use selected locale
         listenOptions: stt.SpeechListenOptions(
@@ -716,8 +716,8 @@ class VoiceCallService {
       _isListening = false;
       onListeningStateChanged?.call(false);
       await _stt.stop();
-      // Wait for mic to fully stop
-      await Future.delayed(const Duration(milliseconds: 200));
+      // Wait for mic to fully stop (increased delay to prevent echo/feedback)
+      await Future.delayed(const Duration(milliseconds: 800));
     }
 
     debugPrint(
