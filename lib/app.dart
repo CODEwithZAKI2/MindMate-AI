@@ -15,10 +15,10 @@ class MindMateApp extends ConsumerWidget {
       title: 'MindMate AI',
       debugShowCheckedModeBanner: false,
 
-      // Theme
+      // Theme - Force light mode to prevent dark theme conflicts
       theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system, // TODO: Make this dynamic from settings
+      darkTheme: AppTheme.lightTheme, // Use light theme for dark mode too
+      themeMode: ThemeMode.light, // Force light mode
 
       // Routing
       routerConfig: router,

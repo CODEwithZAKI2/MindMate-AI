@@ -272,16 +272,18 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   Widget _buildPage(_OnboardingData data, Size size, ThemeData theme) {
     return FadeTransition(
       opacity: _fadeAnimation,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
             // Large illustration with shadow
             Container(
               constraints: BoxConstraints(
                 maxWidth: size.width * 0.85,
-                maxHeight: size.height * 0.40,
+                maxHeight: size.height * 0.35,
               ),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(32),
@@ -300,7 +302,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               ),
             ),
 
-            const SizedBox(height: 48),
+            const SizedBox(height: 32),
 
             // Subtitle chip
             Container(
@@ -340,13 +342,17 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               child: Text(
                 data.description,
                 style: theme.textTheme.bodyLarge?.copyWith(
-                  height: 1.6,
+                  height: 1.5,
                   color: theme.colorScheme.onSurface.withOpacity(0.7),
                 ),
                 textAlign: TextAlign.center,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-          ],
+            const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
